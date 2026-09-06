@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Faculty List{% endblock %}
+
+{% block content %}
+<div class="faculty-container">
+  <h2>👩‍🏫 Faculty Accounts</h2>
+
+  {% if faculty %}
+    <table>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Branch</th>
+        <th>Section</th>
+      </tr>
+      {% for f in faculty %}
+      <tr>
+        <td>{{ f.name }}</td>
+        <td>{{ f.email }}</td>
+        <td>{{ f.branch }}</td>
+        <td>{{ f.section }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p>No faculty accounts yet.</p>
+  {% endif %}
+</div>
+
+<style>
+.faculty-container {
+  max-width: 800px;
+  margin: 30px auto;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+th, td {
+  padding: 12px;
+  border: 1px solid #ddd;
+  text-align: center;
+}
+
+th {
+  background: #2c3e50;
+  color: white;
+}
+</style>
+{% endblock %}

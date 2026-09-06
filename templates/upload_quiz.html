@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+    --card-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1), 0 15px 20px -20px rgba(0, 0, 0, 0.1);
+  }
+
+  body {
+    background: #f8fafc;
+    min-height: 100vh;
+  }
+
+  .upload-page {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .upload-card {
+    background: #ffffff;
+    border-radius: 24px;
+    border: 1px solid #e2e8f0;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    max-width: 800px;
+    margin: 40px auto;
+  }
+
+  .card-gradient-banner {
+    background: var(--primary-gradient);
+    padding: 40px;
+    color: white;
+    text-align: center;
+    position: relative;
+  }
+
+  .card-gradient-banner h2 {
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .card-gradient-banner p {
+    font-size: 15px;
+    opacity: 0.9;
+    margin-bottom: 0;
+  }
+
+  .form-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #4f46e5;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 20px;
+    border-left: 4px solid #4f46e5;
+    padding-left: 10px;
+  }
+
+  .form-container-body {
+    padding: 40px 50px;
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .form-control,
+  .form-select {
+    border-radius: 12px;
+    border: 1.5px solid #cbd5e1;
+    padding: 11px 16px;
+    font-size: 15px;
+    color: #334155;
+    transition: all 0.25s ease;
+  }
+
+  .form-control:focus,
+  .form-select:focus {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+    color: #0f172a;
+  }
+
+  .csv-dropzone {
+    background: #f8fafc;
+    border: 2px dashed #cbd5e1;
+    border-radius: 16px;
+    padding: 30px;
+    text-align: center;
+    transition: all 0.25s ease;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .csv-dropzone:hover {
+    border-color: #4f46e5;
+    background: #f5f3ff;
+  }
+
+  .csv-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    display: inline-block;
+  }
+
+  .csv-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .info-box {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 14px;
+    margin-bottom: 25px;
+  }
+
+  .btn-submit {
+    background: var(--primary-gradient);
+    color: white;
+    font-weight: 600;
+    font-size: 16px;
+    padding: 12px 30px;
+    border-radius: 12px;
+    border: none;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+  }
+
+  .btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+    opacity: 0.95;
+    color: white;
+  }
+
+  .btn-cancel {
+    border-radius: 12px;
+    padding: 12px 30px;
+    font-weight: 600;
+    font-size: 16px;
+    color: #64748b;
+    border: 1.5px solid #cbd5e1;
+    background: transparent;
+    transition: all 0.25s ease;
+    text-decoration: none;
+  }
+
+  .btn-cancel:hover {
+    background: #f1f5f9;
+    color: #334155;
+    border-color: #94a3b8;
+  }
+</style>
+
+<div class="container upload-page">
+  <div class="upload-card">
+    
+    <!-- Gradient Banner -->
+    <div class="card-gradient-banner">
+      <h2>Create a New Quiz</h2>
+      <p>Configure targeting parameters, schedules, and upload questions to launch a student assessment</p>
+    </div>
+
+    <!-- Form Body -->
+    <div class="form-container-body">
+      <form method="POST" enctype="multipart/form-data">
+        
+        <!-- Section 1: General Info -->
+        <div class="form-section-title">General Information</div>
+        <div class="mb-4">
+          <label for="title" class="form-label">Quiz Title</label>
+          <input type="text" name="title" id="title" class="form-control" placeholder="e.g. CRT Mock Quiz - 1" required>
+        </div>
+
+        <!-- Section 2: Student Targeting -->
+        <div class="form-section-title mt-5">Student Targeting</div>
+        <div class="row g-4 mb-4">
+          <div class="col-md-6">
+            <label for="department" class="form-label">Department</label>
+            <select name="department" id="department" class="form-select" required>
+              <option value="">Select Department</option>
+              <option value="All">All Departments</option>
+              <option value="CSE">CSE</option>
+              <option value="DCMS">DCMS</option>
+              <option value="BIOTECH">BIOTECH</option>
+              <option value="ECE">ECE</option>
+              <option value="ACSE">ACSE</option>
+              <option value="IT">IT</option>
+              <option value="MECH">MECH</option>
+              <option value="CIVIL">CIVIL</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="branch" class="form-label">Branch</label>
+            <select name="branch" id="branch" class="form-select" required>
+              <option value="">Select Branch</option>
+              <option value="All">All Branches</option>
+              <option value="BCA">BCA</option>
+              <option value="BBA">BBA</option>
+              <option value="MCA">MCA</option>
+              <option value="MBA">MBA</option>
+              <option value="BI">BI</option>
+              <option value="BT">BT</option>
+              <option value="CSE">CSE</option>
+              <option value="ECE">ECE</option>
+              <option value="AIML">AIML</option>
+              <option value="CS">CS</option>
+              <option value="DS">DS</option>
+              <option value="MECH">MECH</option>
+              <option value="CIVIL">CIVIL</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+          <div class="col-md-6">
+            <label for="year" class="form-label">Target Year</label>
+            <select name="year" id="year" class="form-select" required>
+              <option value="">Select Year</option>
+              <option value="All">All Years</option>
+              <option value="1">1st Year</option>
+              <option value="2">2nd Year</option>
+              <option value="3">3rd Year</option>
+              <option value="4">4th Year</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="section" class="form-label">Section</label>
+            <select name="section" id="section" class="form-select" required>
+              <option value="">Select Section</option>
+              <option value="All">All Sections</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Section 3: Schedule & Credentials -->
+        <div class="form-section-title mt-5">Schedule & Configuration</div>
+        <div class="row g-4 mb-4">
+          <div class="col-md-6">
+            <label for="start_time" class="form-label">Start Time (IST)</label>
+            <input type="datetime-local" name="start_time" id="start_time" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label for="end_time" class="form-label">End Time (IST)</label>
+            <input type="datetime-local" name="end_time" id="end_time" class="form-control" required>
+          </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+          <div class="col-md-6">
+            <label for="start_password" class="form-label">Access Password</label>
+            <input type="text" name="start_password" id="start_password" class="form-control" placeholder="Enter key password" required>
+          </div>
+          <div class="col-md-6">
+            <label for="marks_per_question" class="form-label">Marks per Correct Answer</label>
+            <input type="number" name="marks_per_question" id="marks_per_question" class="form-control" min="1" value="1" required>
+          </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+          <div class="col-md-12">
+            <label for="questions_per_student" class="form-label">Questions per Student (Randomized Subset)</label>
+            <input type="number" name="questions_per_student" id="questions_per_student" class="form-control" min="1" placeholder="e.g. 25 (Leave blank for all questions)">
+            <small class="text-muted">If set (e.g. 25), each student will get 25 jumbled/random questions chosen from the uploaded CSV pool.</small>
+          </div>
+        </div>
+
+        <!-- Section 4: CSV Upload -->
+        <div class="form-section-title mt-5">Questions Import</div>
+        
+        <div class="info-box d-flex align-items-start justify-content-between">
+          <div class="d-flex align-items-start">
+            <span class="me-2" style="font-size: 18px;">💡</span>
+            <div>
+              <strong>CSV / ZIP Upload Requirements:</strong>
+              <code class="d-block mt-1 bg-white p-1.5 rounded text-success border" style="font-size: 13px;">question, image_url, A, B, C, D, correct</code>
+              <ul class="mb-0 mt-1 ps-3 text-secondary small">
+                <li><strong>Image Link:</strong> Enter direct diagram URL in <code>image_url</code> column (e.g. <code>https://.../circuit.png</code>).</li>
+                <li><strong>Bulk Diagrams (ZIP):</strong> Upload a <code>.zip</code> file containing <code>questions.csv</code> and diagram images (e.g. <code>fig1.png</code> in <code>image_url</code> column).</li>
+              </ul>
+            </div>
+          </div>
+          <a href="{{ url_for('sample_questions_csv') }}" class="btn btn-outline-primary btn-sm ms-3 text-nowrap align-self-center">
+            📥 Sample CSV
+          </a>
+        </div>
+
+        <div class="mb-4">
+          <div class="csv-dropzone" id="dropzone">
+            <div class="csv-icon">📦</div>
+            <h6 class="fw-bold mb-1" id="file-label">Choose CSV or ZIP file or drag it here</h6>
+            <p class="text-secondary small mb-0">Supports .csv spreadsheets & .zip archives (with diagram images)</p>
+            <input type="file" name="csv" id="csv" accept=".csv,.zip" class="csv-input" required onchange="handleFileSelect(this)">
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="d-flex justify-content-between align-items-center mt-5 pt-3 border-top">
+          <a href="{{ url_for('faculty_dashboard') }}" class="btn-cancel">Cancel</a>
+          <button type="submit" class="btn-submit">Publish Quiz</button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function handleFileSelect(input) {
+    const label = document.getElementById('file-label');
+    const dropzone = document.getElementById('dropzone');
+    if (input.files && input.files.length > 0) {
+      const fileName = input.files[0].name;
+      label.innerText = `Selected file: ${fileName}`;
+      dropzone.style.borderColor = "#4f46e5";
+      dropzone.style.background = "#f5f3ff";
+    } else {
+      label.innerText = "Choose CSV file or drag it here";
+      dropzone.style.borderColor = "#cbd5e1";
+      dropzone.style.background = "#f8fafc";
+    }
+  }
+</script>
+{% endblock %}

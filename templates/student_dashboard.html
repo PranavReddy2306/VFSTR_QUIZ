@@ -1,0 +1,331 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<style>
+  .student-hero {
+    background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+    border-radius: 20px;
+    padding: 30px 35px;
+    color: white;
+    margin-bottom: 30px;
+    box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.3);
+  }
+
+  .student-hero h2 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 1.8rem;
+    margin-bottom: 6px;
+  }
+
+  .stat-card {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+
+  .stat-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 0.82rem;
+    opacity: 0.9;
+    margin-top: 4px;
+  }
+
+  .quiz-card {
+    border-radius: 18px;
+    border: 1.5px solid #e2e8f0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    background: #ffffff;
+    transition: all 0.25s ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .quiz-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.08);
+    border-color: #cbd5e1;
+  }
+
+  .quiz-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .time-badge {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    color: #475569;
+  }
+
+  .btn-start {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff !important;
+    padding: 10px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .btn-start:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+  }
+
+  .score-pill {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  }
+
+  .modal-card {
+    background: #ffffff;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+
+  .modal-header {
+    background: #f8fafc;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .modal-body {
+    padding: 24px;
+  }
+
+  .modal-footer {
+    padding: 16px 24px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    text-align: right;
+  }
+</style>
+
+<div class="container mt-2">
+  <!-- Hero Section -->
+  <div class="student-hero">
+    <div class="row align-items-center">
+      <div class="col-lg-6 mb-3 mb-lg-0">
+        <h2>Welcome back, {{ current_user.name }}! 👋</h2>
+        <p class="mb-0 opacity-90">View your active CRT mock exams and check test results.</p>
+      </div>
+      <div class="col-lg-6">
+        <div class="row g-3">
+          <div class="col-6">
+            <div class="stat-card">
+              <div class="stat-icon"><i class="fa-solid fa-file-pen"></i></div>
+              <div>
+                <div class="stat-value">{{ quizzes|length }}</div>
+                <div class="stat-label">Assigned Quizzes</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="stat-card">
+              <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+              <div>
+                <div class="stat-value">{{ attempts|length }}</div>
+                <div class="stat-label">Submitted Tests</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold text-dark mb-0"><i class="fa-solid fa-list-check me-2 text-primary"></i> Your Quizzes</h4>
+  </div>
+
+  {% if quizzes|length == 0 %}
+    <div class="card p-5 text-center">
+      <div class="fs-1 text-muted mb-3"><i class="fa-regular fa-folder-open"></i></div>
+      <h5 class="fw-bold text-dark">No quizzes available right now</h5>
+      <p class="text-secondary mb-0">Check back later for scheduled CRT assessment tests.</p>
+    </div>
+  {% else %}
+    <div class="row g-4">
+      {% for q in quizzes %}
+        <div class="col-md-6">
+          <div class="card p-4 quiz-card">
+            <div>
+              <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h5 class="quiz-title mb-0 me-2">{{ q.title }}</h5>
+                {% set open = (now >= q.start_time and now <= q.end_time) %}
+                {% if attempts.get(q.id) and attempts.get(q.id).status == 'submitted' %}
+                  <span class="badge bg-success text-white px-3 py-2 rounded-pill fs-7 fw-bold">
+                    <i class="fa-solid fa-circle-check me-1"></i> Submitted
+                  </span>
+                {% elif open %}
+                  <span class="badge bg-danger text-white px-3 py-2 rounded-pill fs-7 fw-bold">
+                    <i class="fa-solid fa-circle-dot me-1"></i> LIVE NOW
+                  </span>
+                {% else %}
+                  <span class="badge bg-secondary text-white px-3 py-2 rounded-pill fs-7">
+                    <i class="fa-regular fa-clock me-1"></i> Closed / Upcoming
+                  </span>
+                {% endif %}
+              </div>
+
+              <div class="text-muted small mb-3">
+                <i class="fa-solid fa-building-columns me-1"></i> {{ q.department }} &nbsp;•&nbsp; 
+                <i class="fa-solid fa-code-branch me-1"></i> {{ q.branch }} &nbsp;•&nbsp; 
+                Sec {{ q.section }}
+              </div>
+
+              <div class="time-badge mb-3">
+                <i class="fa-regular fa-calendar-days me-1 text-primary"></i> 
+                <strong>Schedule (IST):</strong>
+                <div class="mt-1 font-monospace text-dark">{{ q.start_time.strftime('%b %d, %I:%M %p') }} → {{ q.end_time.strftime('%b %d, %I:%M %p') }}</div>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-2">
+              {% if attempts.get(q.id) and attempts.get(q.id).status == 'submitted' %}
+                <div>
+                  <span class="text-muted small">Your Score:</span>
+                  <div class="mt-1">
+                    <span class="score-pill">{{ attempts.get(q.id).score or 0 }} / {{ attempts.get(q.id).max_score or 0 }}</span>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary view-result-btn px-3 py-2" data-quiz-id="{{ q.id }}">
+                  <i class="fa-solid fa-eye me-1"></i> View Scorecard
+                </button>
+              {% elif open %}
+                <span class="text-muted small"><i class="fa-solid fa-shield-halved text-success me-1"></i> Fullscreen Exam</span>
+                <a href="{{ url_for('start_quiz', quiz_id=q.id) }}" class="btn btn-start">
+                  Start Quiz <i class="fa-solid fa-arrow-right"></i>
+                </a>
+              {% else %}
+                <span class="text-muted small">Quiz not active</span>
+                <button class="btn btn-sm btn-secondary px-3 py-2" disabled>Unavailable</button>
+              {% endif %}
+            </div>
+
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+<!-- Result Modal -->
+<div id="resultModal" class="modal-overlay" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h5 class="mb-0 fw-bold"><i class="fa-solid fa-trophy text-warning me-2"></i> Quiz Scorecard</h5>
+      <button id="modalClose" class="btn-close" aria-label="Close"></button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <!-- dynamically filled -->
+    </div>
+    <div class="modal-footer">
+      <a href="#" id="fullResultLink" class="btn btn-primary">
+        Full Scorecard Breakdown <i class="fa-solid fa-arrow-right-long ms-1"></i>
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+  const _attempts = {
+    {% for aid, a in attempts.items() %}
+    {{ aid }}: {
+      id: {{ a.id }}, score: {{ a.score or 0 }}, max_score: {{ a.max_score or 0 }}, status: "{{ a.status }}", submitted_at: "{{ a.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if a.submitted_at else '' }}"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+
+  function openModalForQuiz(quizId) {
+    const data = _attempts[quizId];
+    const modal = document.getElementById('resultModal');
+    const body = document.getElementById('modalBody');
+    const link = document.getElementById('fullResultLink');
+    if (!data) return;
+    body.innerHTML = `
+      <div class="text-center py-3">
+        <div class="display-5 fw-bold text-primary mb-2">${data.score} <span class="fs-4 text-muted">/ ${data.max_score}</span></div>
+        <p class="text-muted mb-1">Status: <span class="badge bg-success-subtle text-success">${data.status.toUpperCase()}</span></p>
+        <p class="text-secondary small">Submitted on: ${data.submitted_at}</p>
+      </div>
+    `;
+    link.href = `{{ url_for('quiz_result', quiz_id=0) }}`.replace('/0', `/${quizId}`);
+    modal.style.display = 'flex';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.view-result-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const qid = btn.getAttribute('data-quiz-id');
+        openModalForQuiz(qid);
+      });
+    });
+    document.getElementById('modalClose').addEventListener('click', () => {
+      document.getElementById('resultModal').style.display = 'none';
+    });
+    document.getElementById('resultModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('resultModal')) document.getElementById('resultModal').style.display = 'none';
+    });
+  });
+</script>
+{% endblock %}
+

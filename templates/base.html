@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}VFSTR Quiz Platform{% endblock %}</title>
+  <!-- Bootstrap 5.3 & Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body {% if current_user.is_authenticated %}data-regno="{{ current_user.roll_number }}"
+  data-role="{{ current_user.role }}" {% else %}data-role="" {% endif %}>
+  {% if not (current_user.is_authenticated and current_user.role == 'faculty') %}
+  <div class="page-watermark">{{ current_user.roll_number if current_user.is_authenticated else '' }}</div>
+  {% endif %}
+
+  <header class="app-header">
+    <nav class="nav">
+      <div class="nav-left">
+        <a href="{% if current_user.is_authenticated %}{% if current_user.role == 'manager' %}{{ url_for('manager_dashboard') }}{% elif current_user.role == 'faculty' %}{{ url_for('faculty_dashboard') }}{% else %}{{ url_for('student_dashboard') }}{% endif %}{% else %}{{ url_for('login') }}{% endif %}"
+          class="brand-link">
+          <img src="{{ url_for('static', filename='vignans.png') }}" alt="VFSTR" class="nav-logo"
+            onerror='this.onerror=null;this.src="{{ url_for("static", filename="vignan.png") }}";' />
+        </a>
+      </div>
+      <div class="nav-center">
+        <span class="brand-title">VFSTR <span class="brand-accent">QUIZ</span></span>
+      </div>
+      <div class="links">
+        {% if current_user.is_authenticated %}
+        <div class="user-profile-badge">
+          <div class="user-avatar">
+            <i class="fa-solid fa-user-astronaut"></i>
+          </div>
+          <div class="user-details">
+            <div class="user-name">{{ current_user.name }}</div>
+            <div class="user-sub">
+              <span class="role-tag role-{{ current_user.role }}">{{ current_user.role|capitalize }}</span>
+              {% if current_user.roll_number %}<span class="reg-no">{{ current_user.roll_number }}</span>{% endif %}
+            </div>
+          </div>
+        </div>
+        <a href="{{ url_for('logout') }}" class="logout-link" title="Sign Out">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          <span>Logout</span>
+        </a>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+
+  <div class="app-layout">
+
+    {% if current_user.is_authenticated and current_user.role == 'manager' %}
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h3>Manager Control</h3>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="{{ url_for('manager_dashboard') }}"
+          class="sidebar-link {% if request.endpoint == 'manager_dashboard' %}active{% endif %}">
+          <span class="icon">📊</span> Dashboard
+        </a>
+        <a href="{{ url_for('manager_create_faculty') }}"
+          class="sidebar-link {% if request.endpoint == 'manager_create_faculty' or request.endpoint == 'edit_faculty' %}active{% endif %}">
+          <span class="icon">➕</span> Add Faculty
+        </a>
+        <a href="{{ url_for('manager_create_student') }}"
+          class="sidebar-link {% if request.endpoint == 'manager_create_student' or request.endpoint == 'edit_student' %}active{% endif %}">
+          <span class="icon">👤</span> Add Student
+        </a>
+        <a href="{{ url_for('manager_students_hub') }}"
+          class="sidebar-link {% if request.endpoint == 'manager_students_list' or request.endpoint == 'manager_students_hub' %}active{% endif %}">
+          <span class="icon">🎓</span> Students List
+        </a>
+        <a href="{{ url_for('manager_upload_faculty') }}"
+          class="sidebar-link {% if request.endpoint == 'manager_upload_faculty' %}active{% endif %}">
+          <span class="icon">📤</span> Upload Faculty
+        </a>
+        <a href="{{ url_for('manager_upload_students') }}"
+          class="sidebar-link {% if request.endpoint == 'manager_upload_students' %}active{% endif %}">
+          <span class="icon">👥</span> Upload Students
+        </a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      {% else %}
+      <main class="container">
+        {% endif %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-container">
+          {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+  </div>
+</body>
+
+</html>

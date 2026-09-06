@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Start Quiz{% endblock %}
+{% block content %}
+<h1>Start Quiz: {{ quiz.title }}</h1>
+<p>Branch: {{ quiz.branch }} | Section: {{ quiz.section }}</p>
+<p>Open Window: {{ quiz.start_time }} to {{ quiz.end_time }} (UTC)</p>
+
+<form method="post" class="card">
+  <label>Enter Start Password
+    <input name="start_password" required>
+  </label>
+  <button type="submit">Start</button>
+</form>
+{% endblock %}

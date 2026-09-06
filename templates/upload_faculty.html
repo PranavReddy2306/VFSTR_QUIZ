@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Upload Faculty{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<div class="card p-4 mx-auto mt-4 upload-page" style="max-width: 600px; font-family: 'Outfit', sans-serif;">
+  <h2 class="mb-4 text-center">📤 Upload Faculty Accounts</h2>
+  
+  <div class="alert alert-info py-2" role="alert">
+    <strong>Info:</strong> Upload a CSV file containing faculty details.
+    <p class="mb-0 mt-1 small">
+      <strong>Required Columns:</strong> Name, Email
+      <br>
+      <strong>Optional Columns:</strong> Department, Branch, Section, Password (defaults to <code>password123</code> if blank)
+    </p>
+  </div>
+
+  <form method="POST" enctype="multipart/form-data">
+    <div class="mb-3">
+      <label class="form-label fw-bold">Select CSV File</label>
+      <input type="file" name="file" class="form-control" accept=".csv" required>
+    </div>
+    
+    <div class="d-flex justify-content-between mt-4">
+      <button type="submit" class="btn btn-success px-4">Upload Faculty</button>
+      <a href="{{ url_for('manager_dashboard') }}" class="btn btn-secondary px-4">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

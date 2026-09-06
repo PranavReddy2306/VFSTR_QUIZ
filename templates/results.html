@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}Results{% endblock %}
+{% block content %}
+
+<style>
+  .results-container {
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.1);
+    font-family: Arial, sans-serif;
+  }
+
+  .results-container h1 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #333;
+  }
+
+  .download-btn {
+    display: inline-block;
+    margin-bottom: 20px;
+    padding: 10px 18px;
+    background: #4CAF50;
+    color: white;
+    font-size: 14px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: 0.3s;
+  }
+
+  .download-btn:hover {
+    background: #45a049;
+  }
+
+  table.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  table.table th, table.table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+  }
+
+  table.table th {
+    background: #4CAF50;
+    color: white;
+    font-weight: bold;
+  }
+
+  table.table tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+
+  table.table tr:hover {
+    background-color: #f1f1f1;
+  }
+</style>
+
+<div class="results-container">
+  <h1>Results: {{ quiz.title }}</h1>
+  <a class="download-btn" href="{{ url_for('download_results', quiz_id=quiz.id) }}">⬇ Download Excel</a>
+  
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Student Name</th>
+        <th>Email</th>
+        <th>Branch</th>
+        <th>Section</th>
+        <th>Started</th>
+        <th>Submitted</th>
+        <th>Status</th>
+        <th>Score</th>
+        <th>Max</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in tables %}
+      <tr>
+        <td>{{ r['Student Name'] }}</td>
+        <td>{{ r['Email'] }}</td>
+        <td>{{ r['Branch'] }}</td>
+        <td>{{ r['Section'] }}</td>
+        <td>{{ r['Started At'] }}</td>
+        <td>{{ r['Submitted At'] }}</td>
+        <td>{{ r['Status'] }}</td>
+        <td>{{ r['Score'] }}</td>
+        <td>{{ r['Max Score'] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

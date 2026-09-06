@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  /* ======== Enhanced Styles ======== */
+  body {
+    background: linear-gradient(135deg, #74ebd5, #ACB6E5);
+    font-family: 'Poppins', sans-serif;
+    color: #333;
+    min-height: 100vh;
+  }
+
+  .upload-container {
+    max-width: 850px;
+    margin: 80px auto;
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+    padding: 50px 60px;
+    transition: transform 0.3s ease;
+  }
+
+  .upload-container:hover {
+    transform: translateY(-5px);
+  }
+
+  .upload-container h2 {
+    color: #1e3c72;
+    font-weight: 700;
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: #1a237e;
+  }
+
+  .form-control,
+  .form-select {
+    border-radius: 12px;
+    border: 2px solid #c5cae9;
+    padding: 10px 14px;
+    font-size: 1rem;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .form-control:focus,
+  .form-select:focus {
+    border-color: #3949ab;
+    box-shadow: 0 0 12px rgba(57, 73, 171, 0.3);
+  }
+
+  button.btn-primary {
+    background: linear-gradient(90deg, #1e3c72, #2a5298);
+    border: none;
+    border-radius: 12px;
+    padding: 12px 35px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    transition: background 0.3s ease;
+  }
+
+  button.btn-primary:hover {
+    background: linear-gradient(90deg, #2a5298, #1e3c72);
+  }
+
+  a.btn-secondary {
+    border-radius: 12px;
+    padding: 12px 30px;
+    font-weight: 500;
+    font-size: 1.05rem;
+  }
+
+  .btn-container {
+    text-align: center;
+    margin-top: 35px;
+  }
+
+  .heading {
+    text-align: center;
+    font-size: 3rem;
+    color: #3949ab;
+    margin-bottom: 15px;
+  }
+
+  /* Smooth hover animation for buttons */
+  button, a {
+    transition: all 0.25s ease-in-out;
+  }
+</style>
+
+<div class="upload-container">
+  <div>
+    <h1 class="heading">VFSTR-H CRT</h1>
+  </div>
+  <h2>Edit Quiz Settings</h2>
+
+  <form method="POST">
+    <!-- Quiz Title -->
+    <div class="mb-4">
+      <label for="title" class="form-label">Quiz Title</label>
+      <input type="text" name="title" id="title" class="form-control" value="{{ quiz.title }}" placeholder="Enter quiz title" required>
+    </div>
+
+    <!-- Start & End Time -->
+    <div class="row">
+      <div class="col-md-6 mb-4">
+        <label for="start_time" class="form-label">Start Time (IST)</label>
+        <input type="datetime-local" name="start_time" id="start_time" class="form-control" value="{{ start_val }}" required>
+      </div>
+      <div class="col-md-6 mb-4">
+        <label for="end_time" class="form-label">End Time (IST)</label>
+        <input type="datetime-local" name="end_time" id="end_time" class="form-control" value="{{ end_val }}" required>
+      </div>
+    </div>
+
+    <!-- Start Password -->
+    <div class="mb-4">
+      <label for="start_password" class="form-label">Start Password</label>
+      <input type="text" name="start_password" id="start_password" class="form-control" value="{{ quiz.start_password }}" placeholder="Enter quiz password" required>
+    </div>
+
+    <!-- Marks per Question -->
+    <div class="mb-4">
+      <label for="marks_per_question" class="form-label">Marks per Question</label>
+      <input type="number" name="marks_per_question" id="marks_per_question" class="form-control" min="1" value="{{ quiz.marks_per_question or 1 }}" required>
+    </div>
+
+    <!-- Questions per Student -->
+    <div class="mb-4">
+      <label for="questions_per_student" class="form-label">Questions per Student (Randomized Subset)</label>
+      <input type="number" name="questions_per_student" id="questions_per_student" class="form-control" min="1" value="{{ quiz.questions_per_student or '' }}" placeholder="e.g. 25 (Leave blank for all questions)">
+      <small class="text-muted">Total pool size: {{ quiz.questions|length }} questions. If set (e.g. 25), each student receives 25 random questions.</small>
+    </div>
+
+    <!-- Buttons -->
+    <div class="btn-container">
+      <button type="submit" class="btn btn-primary me-2">Save Changes</button>
+      <a href="{{ url_for('faculty_dashboard') }}" class="btn btn-secondary btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

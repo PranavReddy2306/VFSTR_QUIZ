@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Edit Faculty{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<div class="card p-4 mx-auto mt-4" style="max-width: 600px; font-family: 'Outfit', sans-serif;">
+  <h2 class="mb-4 text-center">📝 Edit Faculty Details</h2>
+
+  <form method="POST">
+    <div class="mb-3">
+      <label class="form-label fw-bold">Name <span class="text-danger">*</span></label>
+      <input type="text" name="name" value="{{ faculty.name }}" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+      <input type="email" name="email" value="{{ faculty.email }}" class="form-control" required>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label fw-bold">Department</label>
+        <input type="text" name="department" value="{{ faculty.department or '' }}" class="form-control">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label class="form-label fw-bold">Branch</label>
+        <input type="text" name="branch" value="{{ faculty.branch or '' }}" class="form-control">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label fw-bold">Section</label>
+        <input type="text" name="section" value="{{ faculty.section or '' }}" class="form-control">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label class="form-label fw-bold">Year</label>
+        <select name="year" class="form-select">
+          <option value="" {% if not faculty.year %}selected{% endif %}>All/Select Year</option>
+          <option value="1" {% if faculty.year == '1' %}selected{% endif %}>1st Year</option>
+          <option value="2" {% if faculty.year == '2' %}selected{% endif %}>2nd Year</option>
+          <option value="3" {% if faculty.year == '3' %}selected{% endif %}>3rd Year</option>
+          <option value="4" {% if faculty.year == '4' %}selected{% endif %}>4th Year</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+      <button type="submit" class="btn btn-success px-4">Save Changes</button>
+      <a href="{{ url_for('manager_dashboard') }}" class="btn btn-secondary px-4">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

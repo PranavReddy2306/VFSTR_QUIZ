@@ -1,0 +1,21 @@
+# Python / Flask
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Database / SQLite
+*.db
+*.sqlite3
+instance/
+
+# VS Code / IDE
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Quiz Result{% endblock %}
+{% block content %}
+
+<style>
+  body {
+    background: #f8fafc;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .result-container {
+    max-width: 600px;
+    margin: 80px auto;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 40px 30px;
+    text-align: center;
+  }
+
+  .result-container h2 {
+    color: #198754;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .result-container p {
+    color: #333;
+    font-size: 1.1rem;
+    margin: 10px 0;
+  }
+
+  .result-container strong {
+    color: #3c85f2c6;
+  }
+
+  .btn-home {
+    display: inline-block;
+    margin-top: 25px;
+    padding: 10px 24px;
+    background-color: #0d6efd;
+    color: white;
+    font-weight: 500;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+  }
+
+  .btn-home:hover {
+    background-color: #0b5ed7;
+    transform: translateY(-2px);
+  }
+
+  .score-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    color: white;
+    font-size: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 20px auto;
+    font-weight: 700;
+    box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);
+  }
+</style>
+
+<div class="result-container">
+  <h2>🎉 Quiz Completed!</h2>
+  <p><strong>{{ quiz.title }}</strong></p>
+
+  <div class="score-circle">
+    {{ attempt.score }}/{{ attempt.max_score }}
+  </div>
+
+  <p>You’ve successfully completed this quiz.</p>
+
+  <a href="{{ url_for('student_dashboard') }}" class="btn-home">⬅ Back to Dashboard</a>
+</div>
+
+{% endblock %}

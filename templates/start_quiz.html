@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<style>
+  .start-quiz-card {
+    max-width: 800px;
+    margin: 30px auto;
+    background: #ffffff;
+    border-radius: 24px;
+    border: 1.5px solid #e2e8f0;
+    box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+  }
+
+  .start-quiz-banner {
+    background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+    padding: 35px 40px;
+    color: white;
+    text-align: center;
+  }
+
+  .start-quiz-banner h2 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 2rem;
+    margin-bottom: 8px;
+  }
+
+  .start-quiz-body {
+    padding: 40px 45px;
+  }
+
+  .tnc-box {
+    background: #fffbe0;
+    border: 1.5px solid #fde68a;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 30px;
+  }
+
+  .tnc-box h5 {
+    color: #92400e;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 14px;
+  }
+
+  .tnc-box ul {
+    padding-left: 20px;
+    margin-bottom: 18px;
+    color: #78350f;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  .btn-start-exam {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white !important;
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 14px 35px;
+    border-radius: 14px;
+    border: none;
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.3);
+    transition: all 0.25s ease;
+  }
+
+  .btn-start-exam:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);
+  }
+
+  .btn-start-exam:disabled {
+    background: #cbd5e1 !important;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+</style>
+
+<div class="container">
+  <div class="start-quiz-card">
+    <div class="start-quiz-banner">
+      <h2>{{ quiz.title }}</h2>
+      <p class="mb-0 opacity-90"><i class="fa-solid fa-building-columns me-1"></i> {{ quiz.department }} • {{ quiz.branch }} • Section {{ quiz.section }}</p>
+    </div>
+
+    <div class="start-quiz-body">
+      
+      <!-- Meta details -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="p-3 bg-light rounded-3 border">
+            <small class="text-muted d-block">Questions Count:</small>
+            <strong class="text-dark fs-6">
+              {% if quiz.questions_per_student and quiz.questions_per_student < (quiz.questions|length) %}
+                {{ quiz.questions_per_student }} questions <span class="text-primary small">(Random subset of {{ quiz.questions|length }})</span>
+              {% else %}
+                {{ quiz.questions|length }} questions
+              {% endif %}
+            </strong>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="p-3 bg-light rounded-3 border">
+            <small class="text-muted d-block">Window Schedule (IST):</small>
+            <strong class="text-dark small font-monospace">{{ quiz_start_ist }} → {{ quiz_end_ist }}</strong>
+          </div>
+        </div>
+      </div>
+
+      {% if reason %}
+        <div class="alert alert-warning d-flex align-items-center mb-4">
+          <i class="fa-solid fa-triangle-exclamation me-2 fs-5"></i>
+          <div>{{ reason }}</div>
+        </div>
+      {% endif %}
+
+      <form method="POST">
+        <div class="tnc-box">
+          <h5><i class="fa-solid fa-shield-cat me-2"></i> Exam Anti-Cheating &amp; Terms Rules</h5>
+          <ul>
+            <li>The quiz will launch in <strong>Fullscreen Mode</strong>. Fullscreen permission is mandatory to proceed.</li>
+            <li>Switching tabs, minimizing the window, or exiting fullscreen will <strong>auto-submit</strong> your test immediately.</li>
+            <li>No back navigation or outside browser assistance is allowed during the session.</li>
+          </ul>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="acceptTnC">
+            <label class="form-check-label fw-semibold text-dark" for="acceptTnC">
+              I have read, understood, and agree to the exam rules above.
+            </label>
+          </div>
+        </div>
+
+        <input type="hidden" name="fullscreen_enabled" id="fullscreen_enabled" value="0">
+        
+        <div class="mb-4">
+          <label class="form-label fw-bold text-dark">Access Password</label>
+          <input type="text" name="start_password" id="start_password" class="form-control form-control-lg" placeholder="Enter key password given by faculty" {% if not can_start %}disabled{% endif %} required>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center pt-2">
+          <a href="{{ url_for('student_dashboard') }}" class="btn btn-outline-secondary px-4 py-2.5 rounded-3">Cancel</a>
+          <button type="button" id="startBtn" class="btn btn-start-exam" {% if not can_start %}disabled title="Quiz not open right now"{% endif %}>
+            Start &amp; Enter Fullscreen <i class="fa-solid fa-expand ms-2"></i>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const accept = document.getElementById('acceptTnC');
+    const startBtn = document.getElementById('startBtn');
+    const form = document.querySelector('form');
+    const fullscreenInput = document.getElementById('fullscreen_enabled');
+
+    function isFullscreenAvailable() {
+      return !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || document.documentElement.mozRequestFullScreen || document.documentElement.msRequestFullscreen);
+    }
+
+    accept.addEventListener('change', () => {
+      const pwd = document.getElementById('start_password');
+      if (accept.checked) {
+        if (pwd) pwd.removeAttribute('disabled');
+        startBtn.disabled = false;
+      } else {
+        if (pwd) pwd.setAttribute('disabled','');
+        startBtn.disabled = true;
+      }
+    });
+
+    startBtn.addEventListener('click', async () => {
+      if (!accept.checked) {
+        alert('Please accept the Terms & Conditions before starting the quiz.');
+        return;
+      }
+
+      if (!isFullscreenAvailable()) {
+        alert('Fullscreen is not available in your browser. Please use a supported browser and try again.');
+        return;
+      }
+
+      try {
+        const el = document.documentElement;
+        if (el.requestFullscreen) await el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
+        else if (el.msRequestFullscreen) el.msRequestFullscreen();
+      } catch (err) {
+        console.error('Failed to enter fullscreen:', err);
+        alert('Failed to enter fullscreen. Please allow fullscreen to start the quiz.');
+        return;
+      }
+
+      fullscreenInput.value = '1';
+      form.submit();
+    });
+  });
+</script>
+{% endblock %}
+

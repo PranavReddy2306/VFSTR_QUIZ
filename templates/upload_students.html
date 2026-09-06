@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+    --card-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1), 0 15px 20px -20px rgba(0, 0, 0, 0.1);
+  }
+
+  body {
+    background: #f8fafc;
+    min-height: 100vh;
+  }
+
+  .upload-page {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .upload-card {
+    background: #ffffff;
+    border-radius: 24px;
+    border: 1px solid #e2e8f0;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    max-width: 800px;
+    margin: 40px auto;
+  }
+
+  .card-gradient-banner {
+    background: var(--primary-gradient);
+    padding: 40px;
+    color: white;
+    text-align: center;
+    position: relative;
+  }
+
+  .card-gradient-banner h2 {
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .card-gradient-banner p {
+    font-size: 15px;
+    opacity: 0.9;
+    margin-bottom: 0;
+  }
+
+  .form-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #4f46e5;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 20px;
+    border-left: 4px solid #4f46e5;
+    padding-left: 10px;
+  }
+
+  .form-container-body {
+    padding: 40px 50px;
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .csv-dropzone {
+    background: #f8fafc;
+    border: 2px dashed #cbd5e1;
+    border-radius: 16px;
+    padding: 40px 30px;
+    text-align: center;
+    transition: all 0.25s ease;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .csv-dropzone:hover {
+    border-color: #4f46e5;
+    background: #f5f3ff;
+  }
+
+  .csv-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    display: inline-block;
+  }
+
+  .csv-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .info-box {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 14px;
+    margin-bottom: 25px;
+  }
+
+  .btn-submit {
+    background: var(--primary-gradient);
+    color: white;
+    font-weight: 600;
+    font-size: 16px;
+    padding: 12px 30px;
+    border-radius: 12px;
+    border: none;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+  }
+
+  .btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+    opacity: 0.95;
+    color: white;
+  }
+
+  .btn-cancel {
+    border-radius: 12px;
+    padding: 12px 30px;
+    font-weight: 600;
+    font-size: 16px;
+    color: #64748b;
+    border: 1.5px solid #cbd5e1;
+    background: transparent;
+    transition: all 0.25s ease;
+    text-decoration: none;
+  }
+
+  .btn-cancel:hover {
+    background: #f1f5f9;
+    color: #334155;
+    border-color: #94a3b8;
+  }
+</style>
+
+<div class="container upload-page">
+  <div class="upload-card">
+    
+    <!-- Gradient Banner -->
+    <div class="card-gradient-banner">
+      <h2>Upload Student Accounts</h2>
+      <p>Import multiple student profiles into the database using a CSV spreadsheet</p>
+    </div>
+
+    <!-- Form Body -->
+    <div class="form-container-body">
+      
+      <!-- Section 1: Template Download -->
+      <div class="form-section-title">Step 1: Download CSV Template</div>
+      
+      <div class="info-box d-flex align-items-start">
+        <span class="me-2" style="font-size: 18px;">💡</span>
+        <div>
+          <strong>Required Columns:</strong> <code>Roll Number</code>, <code>Name</code>
+          <br>
+          <strong>Optional Columns:</strong> <code>Email</code>, <code>Department</code>, <code>Branch</code>, <code>Section</code>, <code>Year</code>, <code>Password</code>
+          <p class="mb-0 mt-2 text-secondary small">
+            - Email and Year will be auto-generated from the Roll Number if left blank.
+            <br>
+            - Password defaults to <code>password123</code> if left blank.
+          </p>
+        </div>
+      </div>
+
+      <div class="text-center mb-5">
+        <a href="{{ url_for('download_students_template') }}" class="btn btn-outline-primary btn-lg rounded-pill px-4 fw-bold">
+          📥 Download Student CSV Template
+        </a>
+      </div>
+
+      <!-- Section 2: Upload CSV -->
+      <form method="POST" enctype="multipart/form-data">
+        <div class="form-section-title">Step 2: Upload CSV File</div>
+        
+        <div class="mb-4">
+          <div class="csv-dropzone" id="dropzone">
+            <div class="csv-icon">📂</div>
+            <h6 class="fw-bold mb-1" id="file-label">Choose Student CSV file or drag it here</h6>
+            <p class="text-secondary small mb-0">Only .csv files are supported</p>
+            <input type="file" name="file" id="file" accept=".csv" class="csv-input" required onchange="handleFileSelect(this)">
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="d-flex justify-content-between align-items-center mt-5 pt-3 border-top">
+          {% if current_user.role == 'manager' %}
+            <a href="{{ url_for('manager_dashboard') }}" class="btn-cancel">Cancel</a>
+          {% else %}
+            <a href="{{ url_for('faculty_dashboard') }}" class="btn-cancel">Cancel</a>
+          {% endif %}
+          <button type="submit" class="btn-submit">Upload Students</button>
+        </div>
+      </form>
+
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function handleFileSelect(input) {
+    const label = document.getElementById('file-label');
+    const dropzone = document.getElementById('dropzone');
+    if (input.files && input.files.length > 0) {
+      const fileName = input.files[0].name;
+      label.innerText = `Selected file: ${fileName}`;
+      dropzone.style.borderColor = "#4f46e5";
+      dropzone.style.background = "#f5f3ff";
+    } else {
+      label.innerText = "Choose Student CSV file or drag it here";
+      dropzone.style.borderColor = "#cbd5e1";
+      dropzone.style.background = "#f8fafc";
+    }
+  }
+</script>
+{% endblock %}
