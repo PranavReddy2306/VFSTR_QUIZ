@@ -1,5 +1,7 @@
 Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
 Flask-Login==0.6.3
 Werkzeug==3.0.3
 Jinja2==3.1.4
@@ -8,3 +10,4 @@ pandas>=2.2.2
 openpyxl==3.1.5
 tzdata
 firebase-admin
+gunicorn
