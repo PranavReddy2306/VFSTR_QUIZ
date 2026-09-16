@@ -8,6 +8,9 @@
   <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
     <h2 class="mb-0">Manager Dashboard</h2>
     <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+      <a href="{{ url_for('compiler_page') }}" class="btn btn-dark btn-lg rounded-pill">
+        💻 Code Compiler
+      </a>
       <a href="{{ url_for('master_marks_sheet') }}" class="btn btn-primary btn-lg rounded-pill">
         📑 Master Marks Sheet
       </a>
@@ -19,6 +22,7 @@
       </button>
     </div>
   </div>
+
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}

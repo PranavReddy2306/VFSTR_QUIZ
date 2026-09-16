@@ -178,8 +178,21 @@ def evaluate_coding_question(question, code, lang, marks_per_question):
         except Exception:
             pass
 
-    marks_earned = round((passed_count / total_count) * marks_per_question, 2) if total_count > 0 else 0.0
+    # Allot marks based on test case evaluation rules:
+    if passed_count == total_count and total_count > 0:
+        marks_earned = float(marks_per_question)
+    elif passed_count >= 2 or (total_count > 1 and passed_count >= total_count / 2):
+        # Allot at least half marks if 2 or more test cases pass (or >= 50% pass)
+        proportional = (passed_count / total_count) * marks_per_question
+        half_marks = 0.5 * marks_per_question
+        marks_earned = round(max(half_marks, proportional), 2)
+    elif passed_count > 0:
+        marks_earned = round((passed_count / total_count) * marks_per_question, 2)
+    else:
+        marks_earned = 0.0
+
     return (passed_count, total_count, marks_earned)
+
 
 
 def create_app():

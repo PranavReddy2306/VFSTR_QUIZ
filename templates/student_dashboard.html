@@ -165,8 +165,12 @@
     <div class="row align-items-center">
       <div class="col-lg-6 mb-3 mb-lg-0">
         <h2>Welcome back, {{ current_user.name }}! 👋</h2>
-        <p class="mb-0 opacity-90">View your active CRT mock exams and check test results.</p>
+        <p class="mb-2 opacity-90">View your active CRT mock exams and check test results.</p>
+        <a href="{{ url_for('compiler_page') }}" class="btn btn-light text-primary font-heading fw-bold px-4 py-2 mt-2 rounded-pill shadow-sm d-inline-flex align-items-center gap-2">
+          <i class="fa-solid fa-code text-primary"></i> Launch Code Compiler Studio
+        </a>
       </div>
+
       <div class="col-lg-6">
         <div class="row g-3">
           <div class="col-6">
