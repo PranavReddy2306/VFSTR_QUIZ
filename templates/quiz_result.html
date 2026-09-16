@@ -1,83 +1,70 @@
 {% extends "base.html" %}
-{% block title %}Quiz Result{% endblock %}
+{% block title %}Quiz Result | {{ quiz.title }}{% endblock %}
 {% block content %}
 
-<style>
-  body {
-    background: #f8fafc;
-    font-family: 'Poppins', sans-serif;
-  }
+<div class="container py-5" style="max-width: 850px;">
+  <div class="card border-0 shadow-lg rounded-4 overflow-hidden mb-4">
+    <div class="card-header bg-gradient bg-primary text-white text-center py-4">
+      <h2 class="fw-bold mb-1">🎉 Quiz Completed!</h2>
+      <p class="mb-0 fs-5 text-white-50">{{ quiz.title }}</p>
+    </div>
 
-  .result-container {
-    max-width: 600px;
-    margin: 80px auto;
-    background: #ffffff;
-    border-radius: 16px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    padding: 40px 30px;
-    text-align: center;
-  }
+    <div class="card-body p-4 text-center">
+      <div class="d-inline-flex flex-column align-items-center justify-content-center bg-success bg-gradient text-white rounded-circle shadow my-3" style="width: 130px; height: 130px;">
+        <span class="fs-2 fw-bold">{{ attempt.score }}</span>
+        <span class="small text-white-50" style="margin-top: -5px;">out of {{ attempt.max_score }}</span>
+      </div>
 
-  .result-container h2 {
-    color: #198754;
-    font-weight: 700;
-    margin-bottom: 10px;
-  }
+      <p class="text-muted fs-6 mb-4">Your responses have been recorded and evaluated.</p>
 
-  .result-container p {
-    color: #333;
-    font-size: 1.1rem;
-    margin: 10px 0;
-  }
+      <div class="text-start border-top pt-4">
+        <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-list-check me-2 text-primary"></i> Question Breakdown</h5>
 
-  .result-container strong {
-    color: #3c85f2c6;
-  }
+        {% for resp in attempt.responses %}
+          {% set q = resp.question %}
+          <div class="card mb-3 border border-secondary border-opacity-25 rounded-3">
+            <div class="card-body p-3">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <h6 class="fw-bold text-dark mb-0">Q{{ loop.index }}. {{ q.text }}</h6>
+                {% if q.q_type == 'coding' %}
+                  <span class="badge bg-indigo text-white font-monospace" style="background-color: #4f46e5;">Coding Question</span>
+                {% else %}
+                  <span class="badge bg-secondary">MCQ</span>
+                {% endif %}
+              </div>
 
-  .btn-home {
-    display: inline-block;
-    margin-top: 25px;
-    padding: 10px 24px;
-    background-color: #0d6efd;
-    color: white;
-    font-weight: 500;
-    border-radius: 8px;
-    text-decoration: none;
-    transition: all 0.3s ease;
-  }
+              {% if q.q_type == 'coding' %}
+                <div class="bg-dark text-light p-3 rounded font-monospace small mb-2">
+                  <div class="d-flex justify-content-between text-muted mb-1 border-bottom border-secondary pb-1">
+                    <span>Language: <strong class="text-info">{{ resp.submitted_lang|upper if resp.submitted_lang else 'C' }}</strong></span>
+                    <span>Test Cases: <strong class="{% if resp.test_cases_passed == resp.total_test_cases and resp.total_test_cases > 0 %}text-success{% else %}text-warning{% endif %}">{{ resp.test_cases_passed }}/{{ resp.total_test_cases }} Passed</strong></span>
+                  </div>
+                  <pre class="m-0 text-white" style="white-space: pre-wrap;">{{ resp.submitted_code if resp.submitted_code else '// No code submitted' }}</pre>
+                </div>
+                <div class="small fw-bold text-end">
+                  Marks Awarded: <span class="text-success fs-6">{{ resp.marks_obtained }}</span>
+                </div>
+              {% else %}
+                <div class="small text-secondary mb-1">
+                  Selected: <strong class="{% if resp.selected and resp.selected.strip().upper() == (q.correct or '').strip().upper() %}text-success{% else %}text-danger{% endif %}">{{ resp.selected if resp.selected else 'None' }}</strong> | 
+                  Correct Answer: <strong class="text-success">{{ q.correct }}</strong>
+                </div>
+                <div class="small fw-bold text-end">
+                  Marks Awarded: <span class="{% if resp.marks_obtained > 0 %}text-success{% else %}text-danger{% endif %} fs-6">{{ resp.marks_obtained }}</span>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
 
-  .btn-home:hover {
-    background-color: #0b5ed7;
-    transform: translateY(-2px);
-  }
-
-  .score-circle {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #4CAF50, #2E7D32);
-    color: white;
-    font-size: 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 20px auto;
-    font-weight: 700;
-    box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);
-  }
-</style>
-
-<div class="result-container">
-  <h2>🎉 Quiz Completed!</h2>
-  <p><strong>{{ quiz.title }}</strong></p>
-
-  <div class="score-circle">
-    {{ attempt.score }}/{{ attempt.max_score }}
+      <div class="mt-4">
+        <a href="{{ url_for('student_dashboard') }}" class="btn btn-primary px-4 py-2 fw-bold rounded-pill shadow-sm">
+          ⬅ Back to Dashboard
+        </a>
+      </div>
+    </div>
   </div>
-
-  <p>You’ve successfully completed this quiz.</p>
-
-  <a href="{{ url_for('student_dashboard') }}" class="btn-home">⬅ Back to Dashboard</a>
 </div>
 
 {% endblock %}

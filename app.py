@@ -87,7 +87,103 @@ def get_effective_quiz_end_time(quiz, student_id):
 
 
 
+def evaluate_coding_question(question, code, lang, marks_per_question):
+    """
+    Executes student code against question test cases.
+    Returns tuple: (passed_count, total_count, marks_earned)
+    """
+    if not code or not code.strip():
+        return (0, 0, 0.0)
+
+    import json, tempfile, subprocess, time
+
+    test_cases_list = []
+    if question.test_cases:
+        try:
+            test_cases_list = json.loads(question.test_cases)
+        except Exception:
+            raw_lines = [l.strip() for l in question.test_cases.splitlines() if l.strip()]
+            for line in raw_lines:
+                if "=>" in line:
+                    inp, out = line.split("=>", 1)
+                    test_cases_list.append({"input": inp.strip(), "output": out.strip()})
+                else:
+                    test_cases_list.append({"input": line.strip(), "output": ""})
+
+    if not test_cases_list and (question.sample_input or question.sample_output):
+        test_cases_list.append({
+            "input": question.sample_input or "",
+            "output": question.sample_output or ""
+        })
+
+    if not test_cases_list:
+        return (0, 0, 0.0)
+
+    lang = (lang or "c").lower()
+    passed_count = 0
+    total_count = len(test_cases_list)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            if lang in ("c", "cpp", "c++"):
+                ext = "cpp" if lang in ("cpp", "c++") else "c"
+                comp = "g++" if lang in ("cpp", "c++") else "gcc"
+                src_file = os.path.join(temp_dir, f"main.{ext}")
+                exe_file = os.path.join(temp_dir, "main.exe" if os.name == "nt" else "main")
+                with open(src_file, "w", encoding="utf-8") as f:
+                    f.write(code)
+
+                compile_res = subprocess.run([comp, src_file, "-o", exe_file], capture_output=True, text=True, timeout=10)
+                if compile_res.returncode != 0:
+                    return (0, total_count, 0.0)
+
+                for tc in test_cases_list:
+                    tc_in = tc.get("input", "")
+                    expected_out = tc.get("output", "").strip()
+                    run_res = subprocess.run([exe_file], input=tc_in, capture_output=True, text=True, timeout=5)
+                    actual_out = (run_res.stdout or "").strip()
+                    if run_res.returncode == 0 and actual_out == expected_out:
+                        passed_count += 1
+
+            elif lang == "python":
+                src_file = os.path.join(temp_dir, "main.py")
+                with open(src_file, "w", encoding="utf-8") as f:
+                    f.write(code)
+
+                for tc in test_cases_list:
+                    tc_in = tc.get("input", "")
+                    expected_out = tc.get("output", "").strip()
+                    run_res = subprocess.run([os.sys.executable, src_file], input=tc_in, capture_output=True, text=True, timeout=5)
+                    actual_out = (run_res.stdout or "").strip()
+                    if run_res.returncode == 0 and actual_out == expected_out:
+                        passed_count += 1
+
+            elif lang == "java":
+                src_file = os.path.join(temp_dir, "Main.java")
+                with open(src_file, "w", encoding="utf-8") as f:
+                    f.write(code)
+
+                compile_res = subprocess.run(["javac", src_file], capture_output=True, text=True, timeout=10)
+                if compile_res.returncode != 0:
+                    return (0, total_count, 0.0)
+
+                for tc in test_cases_list:
+                    tc_in = tc.get("input", "")
+                    expected_out = tc.get("output", "").strip()
+                    run_res = subprocess.run(["java", "-cp", temp_dir, "Main"], input=tc_in, capture_output=True, text=True, timeout=5)
+                    actual_out = (run_res.stdout or "").strip()
+                    if run_res.returncode == 0 and actual_out == expected_out:
+                        passed_count += 1
+
+        except Exception:
+            pass
+
+    marks_earned = round((passed_count / total_count) * marks_per_question, 2) if total_count > 0 else 0.0
+    return (passed_count, total_count, marks_earned)
+
+
 def create_app():
+
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(DevConfig)
     db.init_app(app)
@@ -1970,14 +2066,28 @@ def create_app():
                     elif raw_img and os.path.basename(raw_img).lower() in extracted_images:
                         resolved_img_url = extracted_images[os.path.basename(raw_img).lower()]
 
+                    q_type = (r.get("type") or r.get("q_type") or r.get("question_type") or "mcq").strip().lower()
+                    if q_type not in ("coding", "mcq"):
+                        q_type = "mcq"
+
+                    sample_input = r.get("sample_input") or r.get("sample_in") or None
+                    sample_output = r.get("sample_output") or r.get("sample_out") or None
+                    test_cases = r.get("test_cases") or r.get("hidden_test_cases") or None
+                    allowed_language = r.get("allowed_language") or r.get("languages") or "c,cpp,python,java"
+
                     questions.append({
+                        "q_type": q_type,
                         "question": q_text,
                         "A": a,
                         "B": b,
                         "C": c,
                         "D": d,
                         "correct": correct,
-                        "image_url": resolved_img_url
+                        "image_url": resolved_img_url,
+                        "sample_input": sample_input,
+                        "sample_output": sample_output,
+                        "test_cases": test_cases,
+                        "allowed_language": allowed_language
                     })
 
                 # Positional Fallback if DictReader produced no questions
@@ -2005,6 +2115,7 @@ def create_app():
                             elif raw_img and os.path.basename(raw_img).lower() in extracted_images:
                                 resolved_img_url = extracted_images[os.path.basename(raw_img).lower()]
                             questions.append({
+                                "q_type": "mcq",
                                 "question": q_text,
                                 "A": a,
                                 "B": b,
@@ -2038,18 +2149,24 @@ def create_app():
             db.session.add(quiz)
             db.session.flush()
 
-            # Add questions with image_url
+            # Add questions with image_url and coding parameters
             for q in questions:
                 db.session.add(Question(
                     quiz_id=quiz.id,
+                    q_type=q.get("q_type", "mcq"),
                     text=q["question"],
-                    option_a=q["A"],
-                    option_b=q["B"],
-                    option_c=q["C"],
-                    option_d=q["D"],
-                    correct=q["correct"],
-                    image_url=q.get("image_url") or None
+                    option_a=q.get("A"),
+                    option_b=q.get("B"),
+                    option_c=q.get("C"),
+                    option_d=q.get("D"),
+                    correct=q.get("correct", "A"),
+                    image_url=q.get("image_url") or None,
+                    sample_input=q.get("sample_input"),
+                    sample_output=q.get("sample_output"),
+                    test_cases=q.get("test_cases"),
+                    allowed_language=q.get("allowed_language", "c,cpp,python,java")
                 ))
+
 
             db.session.commit()
             flash(f"✅ Quiz created successfully with {len(questions)} questions!", "success")
@@ -2062,10 +2179,10 @@ def create_app():
     def sample_questions_csv():
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["question", "image_url", "A", "B", "C", "D", "correct"])
-        writer.writerow(["What is the time complexity of binary search?", "", "O(N)", "O(log N)", "O(N^2)", "O(1)", "B"])
-        writer.writerow(["Identify the logic gate shown in the diagram.", "nand_gate.png", "AND Gate", "NAND Gate", "OR Gate", "XOR Gate", "B"])
-        writer.writerow(["Which data structure uses LIFO principle?", "", "Queue", "Stack", "Array", "Linked List", "B"])
+        writer.writerow(["type", "question", "image_url", "A", "B", "C", "D", "correct", "sample_input", "sample_output", "test_cases", "allowed_language"])
+        writer.writerow(["mcq", "What is the time complexity of binary search?", "", "O(N)", "O(log N)", "O(N^2)", "O(1)", "B", "", "", "", ""])
+        writer.writerow(["coding", "Write a C/Python program to add two numbers from input.", "", "", "", "", "", "", "10 20", "30", '[{"input":"10 20","output":"30"},{"input":"5 15","output":"20"},{"input":"100 200","output":"300"}]', "c,cpp,python,java"])
+        writer.writerow(["mcq", "Which data structure uses LIFO principle?", "", "Queue", "Stack", "Array", "Linked List", "B", "", "", "", ""])
         
         output.seek(0)
         return send_file(
@@ -2074,6 +2191,7 @@ def create_app():
             as_attachment=True,
             download_name="sample_quiz_questions.csv"
         )
+
 
 
 
@@ -2257,17 +2375,41 @@ def create_app():
 
             # Ensure responses table reflects this submission
             Response.query.filter_by(attempt_id=attempt.id).delete()
-            score = 0
-            total = len(questions)
-            for q in questions:
-                selected = request.form.get(f"q_{q.id}")
-                if selected and selected.upper() == q.correct.strip().upper():
-                    score += 1
-                # store even None selections so we have a record
-                db.session.add(Response(attempt_id=attempt.id, question_id=q.id, selected=selected))
+            total_obtained_score = 0.0
+            total_max_score = len(questions) * (quiz.marks_per_question or 1)
 
-            attempt.score = score * quiz.marks_per_question
-            attempt.max_score = total * quiz.marks_per_question
+            for q in questions:
+                if q.q_type == "coding":
+                    submitted_code = request.form.get(f"code_{q.id}", "")
+                    submitted_lang = request.form.get(f"lang_{q.id}", "c")
+                    
+                    passed_count, total_count, earned_marks = evaluate_coding_question(
+                        q, submitted_code, submitted_lang, quiz.marks_per_question or 1
+                    )
+                    total_obtained_score += earned_marks
+
+                    db.session.add(Response(
+                        attempt_id=attempt.id,
+                        question_id=q.id,
+                        submitted_code=submitted_code,
+                        submitted_lang=submitted_lang,
+                        test_cases_passed=passed_count,
+                        total_test_cases=total_count,
+                        marks_obtained=earned_marks
+                    ))
+                else:
+                    selected = request.form.get(f"q_{q.id}")
+                    earned_marks = (quiz.marks_per_question or 1) if (selected and selected.strip().upper() == (q.correct or "").strip().upper()) else 0.0
+                    total_obtained_score += earned_marks
+                    db.session.add(Response(
+                        attempt_id=attempt.id,
+                        question_id=q.id,
+                        selected=selected,
+                        marks_obtained=earned_marks
+                    ))
+
+            attempt.score = total_obtained_score
+            attempt.max_score = total_max_score
             attempt.status = "submitted"
             # Prefer to set submitted_at to the quiz end time (naive) when submission is after end
             submitted_dt = quiz_end_ist if quiz_end_ist and now >= quiz_end_ist else now
@@ -2299,25 +2441,48 @@ def create_app():
 
         q_payload = []
         for q in questions:
-            # Keep original labels (orig) from CSV: A,B,C,D mapped to their texts
-            orig_opts = [("A", q.option_a), ("B", q.option_b), ("C", q.option_c), ("D", q.option_d)]
-            # Shuffle the order of option texts for presentation
-            random.shuffle(orig_opts)
-            # Assign display labels sequentially (A,B,C,D) but preserve orig label for grading
-            display_labels = ["A", "B", "C", "D"]
-            opts_for_ui = []
-            for i, (orig_label, text) in enumerate(orig_opts):
-                display_label = display_labels[i]
-                opts_for_ui.append({"display": display_label, "orig": orig_label, "text": text})
-            # If question text contains a pseudocode block (multiline), split into lead and pseudocode
-            lead = q.text
-            pseudocode = None
-            if isinstance(q.text, str) and '\n' in q.text:
-                parts = q.text.split('\n', 1)
-                lead = parts[0].strip()
-                pseudocode = parts[1].strip()
+            if q.q_type == "coding":
+                # Sample starter code per language
+                starter_code = {
+                    "c": f"// Solution for: {q.text[:40]}\n#include <stdio.h>\n\nint main() {{\n    // Write your code here\n    return 0;\n}}",
+                    "cpp": f"// Solution for: {q.text[:40]}\n#include <iostream>\nusing namespace std;\n\nint main() {{\n    // Write your code here\n    return 0;\n}}",
+                    "python": f"# Solution for: {q.text[:40]}\ndef main():\n    pass\n\nif __name__ == '__main__':\n    main()",
+                    "java": f"public class Main {{\n    public static void main(String[] args) {{\n        // Write solution here\n    }}\n}}"
+                }
+                q_payload.append({
+                    "id": q.id,
+                    "q_type": "coding",
+                    "text": q.text,
+                    "sample_input": q.sample_input or "",
+                    "sample_output": q.sample_output or "",
+                    "allowed_language": q.allowed_language or "c,cpp,python,java",
+                    "starter_code": starter_code
+                })
+            else:
+                orig_opts = [("A", q.option_a), ("B", q.option_b), ("C", q.option_c), ("D", q.option_d)]
+                random.shuffle(orig_opts)
+                display_labels = ["A", "B", "C", "D"]
+                opts_for_ui = []
+                for i, (orig_label, text) in enumerate(orig_opts):
+                    display_label = display_labels[i]
+                    opts_for_ui.append({"display": display_label, "orig": orig_label, "text": text})
+                
+                lead = q.text
+                pseudocode = None
+                if isinstance(q.text, str) and '\n' in q.text:
+                    parts = q.text.split('\n', 1)
+                    lead = parts[0].strip()
+                    pseudocode = parts[1].strip()
 
-            q_payload.append({"id": q.id, "text": q.text, "lead": lead, "pseudocode": pseudocode, "image_url": resolve_image_url(q.image_url), "options": opts_for_ui})
+                q_payload.append({
+                    "id": q.id,
+                    "q_type": "mcq",
+                    "text": q.text,
+                    "lead": lead,
+                    "pseudocode": pseudocode,
+                    "image_url": resolve_image_url(q.image_url),
+                    "options": opts_for_ui
+                })
 
         # Remaining time in seconds for client-side timer
         remaining_time_seconds = int((quiz_end_ist - now).total_seconds())
@@ -2330,6 +2495,7 @@ def create_app():
             q_payload=q_payload,
             remaining_time_seconds=remaining_time_seconds,
         )
+
 
     @app.route("/student/quiz/<int:quiz_id>/result")
     @login_required
@@ -2348,9 +2514,30 @@ def create_app():
     # ================================
     # Online Code Compiler Routes
     # ================================
+
     @app.route("/compiler")
     def compiler_page():
         return render_template("compiler.html")
+
+    @app.route("/api/quiz/run_testcases", methods=["POST"])
+    @login_required
+    def run_quiz_testcases():
+        data = request.get_json() or {}
+        q_id = data.get("question_id")
+        code = data.get("code", "")
+        lang = data.get("language", "c")
+
+        question = db.session.get(Question, q_id)
+        if not question or question.q_type != "coding":
+            return jsonify({"status": "error", "error": "Invalid coding question."})
+
+        passed_count, total_count, marks_earned = evaluate_coding_question(question, code, lang, 1)
+        return jsonify({
+            "status": "success",
+            "passed_test_cases": passed_count,
+            "total_test_cases": total_count,
+            "all_passed": passed_count == total_count and total_count > 0
+        })
 
     @app.route("/api/compiler/run", methods=["POST"])
     def run_code():
@@ -2450,6 +2637,7 @@ def create_app():
     return app
 
 
+
 # ================================
 # App Initialization
 # ================================
@@ -2465,6 +2653,6 @@ with app.app_context():
 
 if __name__ == "__main__":
     # Allow configuring the host and port via environment variables.
-    host = os.environ.get("FLASK_RUN_HOST", "172.25.188.177")
+    host = os.environ.get("FLASK_RUN_HOST", "172.25.30.147")
     port = int(os.environ.get("PORT", 5000))
     app.run(host=host, port=port, debug=True)

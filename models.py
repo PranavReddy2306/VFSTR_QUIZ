@@ -67,13 +67,20 @@ class Question(BaseModel):
     __tablename__ = 'question'
     id = db.Column(db.Integer, primary_key=True)
     quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'), nullable=False)
+    q_type = db.Column(db.String(20), nullable=False, default="mcq")  # 'mcq' or 'coding'
     text = db.Column(db.Text, nullable=False)
-    option_a = db.Column(db.String(500), nullable=False)
-    option_b = db.Column(db.String(500), nullable=False)
-    option_c = db.Column(db.String(500), nullable=False)
-    option_d = db.Column(db.String(500), nullable=False)
-    correct = db.Column(db.String(1), nullable=False)  # 'A','B','C','D'
+    option_a = db.Column(db.String(500), nullable=True)
+    option_b = db.Column(db.String(500), nullable=True)
+    option_c = db.Column(db.String(500), nullable=True)
+    option_d = db.Column(db.String(500), nullable=True)
+    correct = db.Column(db.String(1), nullable=True)  # 'A','B','C','D'
     image_url = db.Column(db.Text, nullable=True)
+
+    # Coding question fields
+    sample_input = db.Column(db.Text, nullable=True)
+    sample_output = db.Column(db.Text, nullable=True)
+    test_cases = db.Column(db.Text, nullable=True)  # JSON text: [{"input": "...", "output": "..."}, ...]
+    allowed_language = db.Column(db.String(50), default="c,cpp,python,java")
 
 
 class Attempt(BaseModel):
@@ -83,8 +90,8 @@ class Attempt(BaseModel):
     student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     submitted_at = db.Column(db.DateTime)
-    score = db.Column(db.Integer, default=0)
-    max_score = db.Column(db.Integer, default=0)
+    score = db.Column(db.Float, default=0.0)
+    max_score = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(20))  # in_progress, submitted, disqualified
     question_ids = db.Column(db.Text, nullable=True)
 
@@ -94,7 +101,14 @@ class Response(BaseModel):
     id = db.Column(db.Integer, primary_key=True)
     attempt_id = db.Column(db.Integer, db.ForeignKey('attempt.id'), nullable=False)
     question_id = db.Column(db.Integer, db.ForeignKey('question.id'), nullable=False)
-    selected = db.Column(db.String(1), nullable=True)  # 'A','B','C','D' or None
+    selected = db.Column(db.String(1), nullable=True)  # 'A','B','C','D' or None (for MCQ)
+    
+    # Coding response fields
+    submitted_code = db.Column(db.Text, nullable=True)
+    submitted_lang = db.Column(db.String(20), nullable=True)
+    test_cases_passed = db.Column(db.Integer, default=0)
+    total_test_cases = db.Column(db.Integer, default=0)
+    marks_obtained = db.Column(db.Float, default=0.0)
 
 
 class Result(BaseModel):

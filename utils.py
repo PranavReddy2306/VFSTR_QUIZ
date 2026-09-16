@@ -78,7 +78,7 @@ def parse_csv_students(file):
 
 
 def parse_csv_questions(file):
-    """Parse uploaded quiz questions CSV and return list of dicts."""
+    """Parse uploaded quiz questions CSV and return list of dicts (supports both MCQ and Coding types)."""
     data = []
     if isinstance(file, str):
         content = file
@@ -105,14 +105,23 @@ def parse_csv_questions(file):
             or r.get("diagram_url")
             or ""
         )
+        q_type = (r.get("type") or r.get("q_type") or r.get("question_type") or "mcq").strip().lower()
+        if q_type not in ("coding", "mcq"):
+            q_type = "mcq"
+
         data.append({
+            "q_type": q_type,
             "text": r.get("question", "") or r.get("text", ""),
             "A": r.get("a", "") or r.get("option_a", ""),
             "B": r.get("b", "") or r.get("option_b", ""),
             "C": r.get("c", "") or r.get("option_c", ""),
             "D": r.get("d", "") or r.get("option_d", ""),
             "correct": (r.get("correct", "") or "").strip().upper(),
-            "image_url": img.strip()
+            "image_url": img.strip(),
+            "sample_input": r.get("sample_input", "") or r.get("sample_in", ""),
+            "sample_output": r.get("sample_output", "") or r.get("sample_out", ""),
+            "test_cases": r.get("test_cases", "") or r.get("hidden_test_cases", ""),
+            "allowed_language": r.get("allowed_language", "") or r.get("languages", "c,cpp,python,java")
         })
     return data
 

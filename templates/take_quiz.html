@@ -45,31 +45,87 @@
     <div class="card mb-4 p-4 question-card" data-qindex="{{ loop.index0 }}" style="{% if not loop.first %}display: none;{% endif %}">
       <div class="card-body p-0">
         <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-          <h5 class="mb-0 q-title"><span class="text-primary fw-bold">Q{{ loop.index }}.</span> {{ q.lead }}</h5>
+          <h5 class="mb-0 q-title">
+            <span class="text-primary fw-bold">Q{{ loop.index }}.</span> {{ q.lead or q.text }}
+            {% if q.q_type == 'coding' %}
+            <span class="badge bg-indigo text-white ms-2 px-3 py-1 font-monospace rounded-pill" style="background-color: #4f46e5;">
+              <i class="fa-solid fa-code"></i> Programming Question
+            </span>
+            {% endif %}
+          </h5>
           <span class="badge bg-light text-dark border px-3 py-2 fs-6 rounded-pill">Question {{ loop.index }} of {{ q_payload|length }}</span>
         </div>
-        {% if q.pseudocode %}
-        <pre class="pseudocode card p-3 bg-light">{{ q.pseudocode }}</pre>
+
+        {% if q.q_type == 'coding' %}
+          <!-- Coding Question Workspace -->
+          <div class="coding-question-wrapper border rounded-3 p-3 bg-light mt-3">
+            {% if q.sample_input or q.sample_output %}
+            <div class="row g-3 mb-3">
+              {% if q.sample_input %}
+              <div class="col-md-6">
+                <label class="form-label fw-bold text-secondary small mb-1"><i class="fa-solid fa-terminal me-1"></i> Sample Input:</label>
+                <pre class="bg-dark text-warning p-2 rounded small m-0 font-monospace" style="max-height: 100px; overflow-y: auto;">{{ q.sample_input }}</pre>
+              </div>
+              {% endif %}
+              {% if q.sample_output %}
+              <div class="col-md-6">
+                <label class="form-label fw-bold text-secondary small mb-1"><i class="fa-solid fa-check-circle me-1"></i> Expected Sample Output:</label>
+                <pre class="bg-dark text-success p-2 rounded small m-0 font-monospace" style="max-height: 100px; overflow-y: auto;">{{ q.sample_output }}</pre>
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+              <div class="d-flex align-items-center gap-2">
+                <label class="form-label fw-bold mb-0 text-dark small">Select Language:</label>
+                <select name="lang_{{ q.id }}" id="lang_select_{{ q.id }}" class="form-select form-select-sm border-secondary fw-bold" style="width: 140px;" onchange="switchQStarterCode({{ q.id }})">
+                  <option value="c" selected>C (GCC)</option>
+                  <option value="cpp">C++ (G++)</option>
+                  <option value="python">Python 3</option>
+                  <option value="java">Java</option>
+                </select>
+              </div>
+
+              <div class="d-flex align-items-center gap-2">
+                <span id="tc_status_{{ q.id }}" class="badge bg-secondary font-monospace px-3 py-2">Test Cases: Not Run</span>
+                <button type="button" class="btn btn-sm btn-dark fw-bold px-3 d-inline-flex align-items-center gap-1" onclick="runQTestCases({{ q.id }})">
+                  <i class="fa-solid fa-flask text-warning"></i> Run Test Cases
+                </button>
+              </div>
+            </div>
+
+            <!-- Code Editor Box -->
+            <textarea name="code_{{ q.id }}" id="code_input_{{ q.id }}" 
+                      class="form-control bg-dark text-light font-monospace p-3 rounded-3" 
+                      rows="12" style="font-size: 13.5px; line-height: 1.5; resize: vertical; tab-size: 4;"
+                      placeholder="// Type your program solution here..." spellcheck="false" oninput="updateAnsweredStatus()">{{ q.starter_code.c if q.starter_code else '' }}</textarea>
+          </div>
+        {% else %}
+          <!-- MCQ Question Workspace -->
+          {% if q.pseudocode %}
+          <pre class="pseudocode card p-3 bg-light">{{ q.pseudocode }}</pre>
+          {% endif %}
+          {% if q.image_url %}
+          <div class="question-diagram-container text-center my-3 p-3 bg-light rounded-3 border">
+            <img src="{{ resolve_image_url(q.image_url) if resolve_image_url is defined else q.image_url }}" alt="Question Diagram" class="question-diagram-img img-fluid rounded">
+          </div>
+          {% endif %}
+          <div class="options-container mt-4">
+            {% for opt in q.options %}
+            <label class="option-row option-label" for="q{{ q.id }}_{{ opt.display }}">
+              <input
+                class="option-radio"
+                type="radio"
+                name="q_{{ q.id }}"
+                id="q{{ q.id }}_{{ opt.display }}"
+                value="{{ opt.orig }}"
+              >
+              <span class="option-text"><strong>{{ opt.display }}.</strong> {{ opt.text }}</span>
+            </label>
+            {% endfor %}
+          </div>
         {% endif %}
-        {% if q.image_url %}
-        <div class="question-diagram-container text-center my-3 p-3 bg-light rounded-3 border">
-          <img src="{{ resolve_image_url(q.image_url) if resolve_image_url is defined else q.image_url }}" alt="Question Diagram" class="question-diagram-img img-fluid rounded">
-        </div>
-        {% endif %}
-        <div class="options-container mt-4">
-          {% for opt in q.options %}
-          <label class="option-row option-label" for="q{{ q.id }}_{{ opt.display }}">
-            <input
-              class="option-radio"
-              type="radio"
-              name="q_{{ q.id }}"
-              id="q{{ q.id }}_{{ opt.display }}"
-              value="{{ opt.orig }}"
-            >
-            <span class="option-text"><strong>{{ opt.display }}.</strong> {{ opt.text }}</span>
-          </label>
-          {% endfor %}
-        </div>
       </div>
     </div>
     {% endfor %}
@@ -98,6 +154,64 @@
 </script>
 
 <script>
+const Q_STARTERS = {};
+{% for q in q_payload %}
+  {% if q.q_type == 'coding' %}
+    Q_STARTERS[{{ q.id }}] = {{ q.starter_code | tojson }};
+  {% endif %}
+{% endfor %}
+
+function switchQStarterCode(qId) {
+  const langSelect = document.getElementById(`lang_select_${qId}`);
+  if (!langSelect) return;
+  const lang = langSelect.value;
+  const editor = document.getElementById(`code_input_${qId}`);
+  if (Q_STARTERS[qId] && Q_STARTERS[qId][lang] && editor) {
+    if (!editor.value.trim() || editor.value.startsWith("// Solution for") || editor.value.startsWith("# Solution for")) {
+      editor.value = Q_STARTERS[qId][lang];
+    }
+  }
+}
+
+async function runQTestCases(qId) {
+  const editor = document.getElementById(`code_input_${qId}`);
+  const langSelect = document.getElementById(`lang_select_${qId}`);
+  const badge = document.getElementById(`tc_status_${qId}`);
+
+  if (!editor || !editor.value.trim()) {
+    alert("Please enter solution code first.");
+    return;
+  }
+
+  badge.className = "badge bg-warning text-dark font-monospace px-3 py-2";
+  badge.textContent = "Running Test Cases...";
+
+  try {
+    const res = await fetch("/api/quiz/run_testcases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question_id: qId, code: editor.value, language: langSelect.value })
+    });
+    const data = await res.json();
+    if (data.status === "success") {
+      if (data.all_passed) {
+        badge.className = "badge bg-success font-monospace px-3 py-2";
+        badge.textContent = `✅ Passed ${data.passed_test_cases}/${data.total_test_cases} Test Cases`;
+      } else {
+        badge.className = "badge bg-danger font-monospace px-3 py-2";
+        badge.textContent = `❌ Passed ${data.passed_test_cases}/${data.total_test_cases} Test Cases`;
+      }
+    } else {
+      badge.className = "badge bg-danger font-monospace px-3 py-2";
+      badge.textContent = "Compile / Runtime Error";
+    }
+  } catch (err) {
+    badge.className = "badge bg-danger font-monospace px-3 py-2";
+    badge.textContent = "Error testing code";
+  }
+  updateAnsweredStatus();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const startBtn = document.getElementById("startQuizBtn");
   const quizForm = document.getElementById("quizForm");
@@ -120,12 +234,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (index < 0 || index >= totalQuestions) return;
     currentIndex = index;
 
-    // Show current card, hide others
     qCards.forEach((card, i) => {
       card.style.display = i === currentIndex ? "block" : "none";
     });
 
-    // Update palette highlights
     paletteBtns.forEach((btn, i) => {
       if (i === currentIndex) {
         btn.classList.add("active");
@@ -134,7 +246,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Update buttons state
     prevBtn.disabled = (currentIndex === 0);
     if (currentIndex === totalQuestions - 1) {
       nextBtn.style.display = "none";
@@ -142,20 +253,22 @@ document.addEventListener("DOMContentLoaded", () => {
       nextBtn.style.display = "inline-flex";
     }
 
-    // Update badge text
     if (qProgressBadge) {
       qProgressBadge.textContent = `Question ${currentIndex + 1} of ${totalQuestions}`;
     }
   }
 
-  // Track answered questions and highlight option row
-  function updateAnsweredStatus() {
+  // Track answered questions (MCQ radios & Coding textareas)
+  window.updateAnsweredStatus = function() {
     let answered = 0;
     qCards.forEach((card, i) => {
       const inputs = card.querySelectorAll("input[type='radio']");
-      const isChecked = Array.from(inputs).some(input => input.checked);
+      const textarea = card.querySelector("textarea");
+      const isRadioChecked = Array.from(inputs).some(input => input.checked);
+      const isTextareaFilled = textarea && textarea.value.trim().length > 10;
       const paletteBtn = document.getElementById(`palette_btn_${i}`);
-      if (isChecked) {
+      
+      if (isRadioChecked || isTextareaFilled) {
         answered++;
         if (paletteBtn) paletteBtn.classList.add("answered");
       } else {
@@ -163,9 +276,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     if (answeredCountEl) answeredCountEl.textContent = answered;
-  }
+  };
 
-  // Event Listeners for Nav Buttons
   prevBtn.addEventListener("click", () => {
     showQuestion(currentIndex - 1);
   });
@@ -174,7 +286,6 @@ document.addEventListener("DOMContentLoaded", () => {
     showQuestion(currentIndex + 1);
   });
 
-  // Event Listeners for Palette Buttons
   paletteBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.getAttribute("data-qindex"), 10);
@@ -182,7 +293,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Event Listeners for Radio changes
   quizForm.addEventListener("change", (e) => {
     if (e.target.classList.contains("option-radio")) {
       updateAnsweredStatus();
@@ -195,14 +305,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Form Submission Validation
   quizForm.addEventListener("submit", (e) => {
     if (alreadySubmitted) return;
     
     let answered = 0;
     qCards.forEach((card) => {
       const inputs = card.querySelectorAll("input[type='radio']");
-      if (Array.from(inputs).some(input => input.checked)) answered++;
+      const textarea = card.querySelector("textarea");
+      if (Array.from(inputs).some(input => input.checked) || (textarea && textarea.value.trim().length > 10)) {
+        answered++;
+      }
     });
 
     if (answered < totalQuestions) {
@@ -215,7 +327,6 @@ document.addEventListener("DOMContentLoaded", () => {
     alreadySubmitted = true;
   });
 
-  // Handle auto-submit
   function doAutoSubmit(reason) {
     if (alreadySubmitted) return;
     alreadySubmitted = true;
@@ -223,7 +334,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => quizForm.submit(), 300);
   }
 
-  // Start Quiz (request fullscreen + show form + start timer)
   startBtn.addEventListener("click", async () => {
     const elem = document.documentElement;
     try {
@@ -235,7 +345,6 @@ document.addEventListener("DOMContentLoaded", () => {
     showQuestion(0);
     updateAnsweredStatus();
 
-    // Start timer
     const timer = setInterval(() => {
       const minutes = Math.floor(remainingTime / 60);
       const seconds = remainingTime % 60;
@@ -250,7 +359,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1000);
   });
 
-  // Exit fullscreen or tab switch = auto-submit
   document.addEventListener("fullscreenchange", () => {
     if (!document.fullscreenElement && quizForm.style.display !== "none") {
       doAutoSubmit("⚠️ You exited fullscreen. Submitting your quiz.");
