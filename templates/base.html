@@ -81,6 +81,10 @@
           class="sidebar-link {% if request.endpoint == 'manager_students_list' or request.endpoint == 'manager_students_hub' %}active{% endif %}">
           <span class="icon">🎓</span> Students List
         </a>
+        <a href="{{ url_for('master_marks_sheet') }}"
+          class="sidebar-link {% if request.endpoint == 'master_marks_sheet' %}active{% endif %}">
+          <span class="icon">📑</span> Master Marks Sheet
+        </a>
         <a href="{{ url_for('manager_upload_faculty') }}"
           class="sidebar-link {% if request.endpoint == 'manager_upload_faculty' %}active{% endif %}">
           <span class="icon">📤</span> Upload Faculty

@@ -1,0 +1,365 @@
+{% extends 'base.html' %}
+{% block title %}Quiz Submissions & Reschedule - {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<style>
+  .submissions-container {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    padding-bottom: 50px;
+  }
+
+  .gradient-header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 50%, #3b82f6 100%);
+    color: white;
+    padding: 32px 36px;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px -5px rgba(67, 56, 202, 0.35);
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    height: 100%;
+  }
+
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+
+  .stat-icon-blue { background: #eff6ff; color: #2563eb; }
+  .stat-icon-green { background: #ecfdf5; color: #059669; }
+  .stat-icon-amber { background: #fffbeb; color: #d97706; }
+  .stat-icon-purple { background: #f5f3ff; color: #7c3aed; }
+
+  .table-card {
+    background: white;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+  }
+
+  .custom-table {
+    margin-bottom: 0;
+    vertical-align: middle;
+  }
+
+  .custom-table thead th {
+    background: #0f172a;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    padding: 14px 16px;
+  }
+
+  .custom-table tbody td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .custom-table tbody tr:hover td {
+    background-color: #f8fafc;
+  }
+
+  .status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .status-submitted { background: #dcfce7; color: #15803d; }
+  .status-in-progress { background: #fef3c7; color: #b45309; }
+  .status-absent { background: #fee2e2; color: #991b1b; }
+  .status-rescheduled { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
+
+  .btn-reschedule {
+    background: #4f46e5;
+    color: white;
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    transition: all 0.2s ease;
+  }
+
+  .btn-reschedule:hover {
+    background: #4338ca;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  }
+
+  .modal-content {
+    border-radius: 20px;
+    border: none;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  }
+
+  .modal-header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%);
+    color: white;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    padding: 20px 24px;
+  }
+</style>
+
+<div class="container my-4 submissions-container">
+  
+  <!-- Banner Header -->
+  <div class="gradient-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <a href="{{ url_for('faculty_dashboard') }}" class="btn btn-sm btn-outline-light rounded-pill">
+          <i class="fa-solid fa-arrow-left me-1"></i> Dashboard
+        </a>
+        <span class="badge bg-white bg-opacity-20 text-white rounded-pill px-3 py-1">
+          Yr {{ quiz.year or 'All' }} • {{ quiz.branch }} • Sec {{ quiz.section }}
+        </span>
+      </div>
+      <h2 class="fw-bold mb-1"><i class="fa-solid fa-users-viewfinder me-2"></i> {{ quiz.title }}</h2>
+      <p class="mb-0 text-white-50">
+        <i class="fa-regular fa-clock me-1"></i> Window: {{ quiz_start_ist.strftime('%b %d, %I:%M %p') }} → {{ quiz_end_ist.strftime('%b %d, %I:%M %p') }}
+      </p>
+    </div>
+    <div class="mt-3 mt-md-0 text-md-end">
+      <a href="{{ url_for('download_quiz_results', quiz_id=quiz.id) }}" class="btn btn-success rounded-pill px-4 py-2 fw-bold me-2 shadow-sm">
+        <i class="fa-solid fa-file-csv me-1"></i> Download Results CSV
+      </a>
+      <a href="{{ url_for('master_marks_sheet', year=quiz.year, branch=quiz.branch, section=quiz.section) }}" class="btn btn-outline-light rounded-pill px-3 py-2 fw-semibold">
+        <i class="fa-solid fa-table-list me-1"></i> Master Sheet
+      </a>
+    </div>
+  </div>
+
+  <!-- Summary Statistics Row -->
+  {% set submitted_count = namespace(val=0) %}
+  {% set rescheduled_count = namespace(val=0) %}
+  {% for s in students %}
+    {% set att = attempts_map.get(s.id) %}
+    {% set ovr = overrides_map.get(s.id) %}
+    {% if att and att.status == 'submitted' %}
+      {% set submitted_count.val = submitted_count.val + 1 %}
+    {% endif %}
+    {% if ovr %}
+      {% set rescheduled_count.val = rescheduled_count.val + 1 %}
+    {% endif %}
+  {% endfor %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-blue"><i class="fa-solid fa-user-graduate"></i></div>
+        <div class="text-muted small fw-bold">Total Targeted Students</div>
+        <div class="fs-3 fw-bold text-dark">{{ students|length }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-green"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="text-muted small fw-bold">Submissions Completed</div>
+        <div class="fs-3 fw-bold text-success">{{ submitted_count.val }} / {{ students|length }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-amber"><i class="fa-solid fa-user-clock"></i></div>
+        <div class="text-muted small fw-bold">Pending / Absent</div>
+        <div class="fs-3 fw-bold text-warning">{{ students|length - submitted_count.val }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-purple"><i class="fa-solid fa-rotate-left"></i></div>
+        <div class="text-muted small fw-bold">Rescheduled Overrides</div>
+        <div class="fs-3 fw-bold text-purple">{{ rescheduled_count.val }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Student Submissions Table -->
+  <div class="table-card">
+    <div class="px-4 py-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+      <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-list-check me-2 text-primary"></i> Student Attempts & Reschedule Management</h5>
+      <span class="badge bg-secondary rounded-pill px-3">{{ students|length }} Students</span>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table custom-table align-middle">
+        <thead>
+          <tr>
+            <th class="text-center" style="width: 60px;">#</th>
+            <th>Roll Number</th>
+            <th>Student Name</th>
+            <th class="text-center">Status</th>
+            <th class="text-center">Score</th>
+            <th class="text-center">Submission Time</th>
+            <th class="text-center">Reschedule Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if not students %}
+            <tr>
+              <td colspan="7" class="text-center py-5 text-muted">
+                <i class="fa-solid fa-users-slash fs-1 mb-2 d-block text-secondary"></i>
+                No registered students found for {{ quiz.branch }} Section {{ quiz.section }} (Year {{ quiz.year }}).
+              </td>
+            </tr>
+          {% else %}
+            {% for s in students %}
+              {% set att = attempts_map.get(s.id) %}
+              {% set ovr = overrides_map.get(s.id) %}
+              <tr>
+                <td class="text-center text-muted fw-bold">{{ loop.index }}</td>
+                <td class="fw-bold font-monospace text-primary">{{ s.roll_number or '-' }}</td>
+                <td>
+                  <div class="fw-semibold text-dark">{{ s.name }}</div>
+                  <div class="small text-muted">{{ s.email }}</div>
+                </td>
+
+                <!-- Status Badge -->
+                <td class="text-center">
+                  {% if ovr and not att %}
+                    <span class="status-badge status-rescheduled">
+                      <i class="fa-solid fa-arrow-rotate-right"></i> Rescheduled
+                    </span>
+                  {% elif att and att.status == 'submitted' %}
+                    <span class="status-badge status-submitted">
+                      <i class="fa-solid fa-check-circle"></i> Submitted
+                    </span>
+                  {% elif att and att.status == 'in_progress' %}
+                    <span class="status-badge status-in-progress">
+                      <i class="fa-solid fa-spinner fa-spin"></i> In Progress
+                    </span>
+                  {% else %}
+                    <span class="status-badge status-absent">
+                      <i class="fa-solid fa-user-xmark"></i> Absent
+                    </span>
+                  {% endif %}
+                </td>
+
+                <!-- Score -->
+                <td class="text-center">
+                  {% if att and att.status == 'submitted' %}
+                    <span class="fw-bold fs-6 text-dark">{{ att.score or 0 }}</span>
+                    <span class="text-muted small">/ {{ att.max_score or computed_max_score }}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+
+                <!-- Submission / Override Time -->
+                <td class="text-center small">
+                  {% if ovr and ovr.extended_end_time %}
+                    <div class="badge bg-purple-subtle text-purple text-wrap border border-purple-subtle">
+                      <i class="fa-solid fa-clock me-1"></i> Valid until: {{ ovr.extended_end_time.strftime('%b %d, %I:%M %p') }}
+                    </div>
+                  {% elif att and att.submitted_at %}
+                    <span class="text-secondary"><i class="fa-regular fa-calendar me-1"></i> {{ att.submitted_at.strftime('%b %d, %H:%M') }}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+
+                <!-- Action Button -->
+                <td class="text-center">
+                  <button type="button" class="btn btn-reschedule d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#rescheduleModal{{ s.id }}">
+                    <i class="fa-solid fa-rotate-left"></i> Reschedule
+                  </button>
+
+                  <!-- Modal for Rescheduling Quiz for this Student -->
+                  <div class="modal fade" id="rescheduleModal{{ s.id }}" tabindex="-1" aria-labelledby="modalLabel{{ s.id }}" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                      <div class="modal-content text-start">
+                        
+                        <form method="POST" action="{{ url_for('reschedule_student_quiz', quiz_id=quiz.id, student_id=s.id) }}">
+                          <div class="modal-header">
+                            <h5 class="modal-title fw-bold" id="modalLabel{{ s.id }}">
+                              <i class="fa-solid fa-rotate-left me-2"></i> Reschedule Quiz
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                          </div>
+
+                          <div class="modal-body p-4">
+                            <!-- Student Details Box -->
+                            <div class="p-3 bg-light rounded-3 mb-3 border">
+                              <div class="fw-bold text-dark fs-6">{{ s.name }}</div>
+                              <div class="small text-muted font-monospace">Roll No: {{ s.roll_number or '-' }} &nbsp;•&nbsp; Email: {{ s.email }}</div>
+                              <div class="mt-2 small text-secondary">
+                                Current Status: 
+                                {% if att and att.status == 'submitted' %}
+                                  <strong class="text-success">Submitted (Score: {{ att.score }}/{{ att.max_score }})</strong>
+                                {% else %}
+                                  <strong class="text-muted">Not Submitted / Absent</strong>
+                                {% endif %}
+                              </div>
+                            </div>
+
+                            <div class="alert alert-warning py-2 px-3 small rounded-3 mb-3">
+                              <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                              Rescheduling will <strong>clear any existing attempt & score</strong> for this student so they can take the quiz fresh.
+                            </div>
+
+                            <!-- Extended Deadline Input -->
+                            <div class="mb-3">
+                              <label class="form-label fw-bold small text-dark">
+                                <i class="fa-regular fa-calendar-check me-1 text-primary"></i> Extended Deadline for Student (IST):
+                              </label>
+                              <input type="datetime-local" name="extended_end_time" class="form-control" value="{{ default_extension }}" required>
+                              <div class="form-text small">Sets the date & time until which this specific student can access and take the quiz.</div>
+                            </div>
+
+                            <!-- Reason / Note -->
+                            <div class="mb-3">
+                              <label class="form-label fw-bold small text-dark">
+                                <i class="fa-regular fa-comment-dots me-1 text-primary"></i> Reason / Remarks (Optional):
+                              </label>
+                              <input type="text" name="reason" class="form-control" placeholder="e.g., Technical issue during first attempt">
+                            </div>
+                          </div>
+
+                          <div class="modal-footer bg-light border-top p-3">
+                            <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                              <i class="fa-solid fa-check me-1"></i> Confirm Reschedule
+                            </button>
+                          </div>
+                        </form>
+
+                      </div>
+                    </div>
+                  </div>
+
+                </td>
+              </tr>
+            {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

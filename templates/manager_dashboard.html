@@ -5,11 +5,17 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <div class="container mt-4 manager-dashboard">
-  <div class="d-flex align-items-center mb-4">
+  <div class="d-flex align-items-center mb-4 flex-wrap gap-2">
     <h2 class="mb-0">Manager Dashboard</h2>
-    <div class="ms-auto d-flex align-items-center">
+    <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+      <a href="{{ url_for('master_marks_sheet') }}" class="btn btn-primary btn-lg rounded-pill">
+        📑 Master Marks Sheet
+      </a>
       <button type="button" class="btn btn-warning btn-lg rounded-pill manager-label-btn" data-bs-toggle="modal" data-bs-target="#promoteStudentsModal">
         Promote Students
+      </button>
+      <button type="button" class="btn btn-danger btn-lg rounded-pill" data-bs-toggle="modal" data-bs-target="#deleteStudentsModal">
+        🗑️ Delete Students
       </button>
     </div>
   </div>
@@ -92,9 +98,12 @@
               </tbody>
             </table>
           </div>
-          <div class="text-center mt-3">
+          <div class="text-center mt-3 d-flex justify-content-center gap-2 flex-wrap">
             <a href="{{ url_for('manager_students_hub') }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
               View All Students List →
+            </a>
+            <a href="{{ url_for('master_marks_sheet') }}" class="btn btn-sm btn-outline-success rounded-pill px-3">
+              📑 Class Master Marks Sheet →
             </a>
           </div>
         {% else %}
@@ -162,6 +171,73 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-warning">Promote filtered students</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Students Modal -->
+<div class="modal fade" id="deleteStudentsModal" tabindex="-1" aria-labelledby="deleteStudentsModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content text-dark">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="deleteStudentsModalLabel">🗑️ Delete Students (Year-Wise / Filtered)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('manager_delete_students_by_year') }}" onsubmit="return confirm('⚠️ WARNING: Are you sure you want to permanently delete the selected students and all their quiz attempt history? This action cannot be undone.');">
+        <div class="modal-body text-start">
+          <div class="alert alert-danger py-2 small mb-3">
+            <strong>⚠️ Caution:</strong> Deleting students will permanently remove their accounts and all quiz history/attempts.
+          </div>
+          <p class="text-muted small">Select the academic year and optional filters to delete students.</p>
+          
+          <div class="mb-3">
+            <label for="del_year" class="form-label fw-bold">Select Year to Delete <span class="text-danger">*</span></label>
+            <select name="year" id="del_year" class="form-select" required>
+              <option value="" disabled selected>-- Select Academic Year --</option>
+              {% for y in years %}
+                <option value="{{ y }}">
+                  {% if y == '1' %}1st Year{% elif y == '2' %}2nd Year{% elif y == '3' %}3rd Year{% elif y == '4' %}4th Year{% else %}{{ y }}{% endif %}
+                </option>
+              {% endfor %}
+              <option value="All">⚠️ All Years (Entire Student Body)</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="del_department" class="form-label fw-bold">Department (Optional)</label>
+            <select name="department" id="del_department" class="form-select">
+              <option value="All">All Departments</option>
+              {% for dept in departments %}
+                <option value="{{ dept }}">{{ dept }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="del_branch" class="form-label fw-bold">Branch (Optional)</label>
+            <select name="branch" id="del_branch" class="form-select">
+              <option value="All">All Branches</option>
+              {% for br in branches %}
+                <option value="{{ br }}">{{ br }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="del_section" class="form-label fw-bold">Section (Optional)</label>
+            <select name="section" id="del_section" class="form-select">
+              <option value="All">All Sections</option>
+              {% for sec in sections %}
+                <option value="{{ sec }}">{{ sec }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger">Permanently Delete Students</button>
         </div>
       </form>
     </div>

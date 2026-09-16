@@ -211,7 +211,11 @@
               <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <h5 class="quiz-title mb-0 me-2">{{ q.title }}</h5>
                 {% set open = (now >= q.start_time and now <= q.end_time) %}
-                {% if attempts.get(q.id) and attempts.get(q.id).status == 'submitted' %}
+                {% if overrides and overrides.get(q.id) and not attempts.get(q.id) %}
+                  <span class="badge bg-purple text-white px-3 py-2 rounded-pill fs-7 fw-bold" style="background-color: #7c3aed !important;">
+                    <i class="fa-solid fa-rotate-left me-1"></i> Rescheduled for You
+                  </span>
+                {% elif attempts.get(q.id) and attempts.get(q.id).status == 'submitted' %}
                   <span class="badge bg-success text-white px-3 py-2 rounded-pill fs-7 fw-bold">
                     <i class="fa-solid fa-circle-check me-1"></i> Submitted
                   </span>
@@ -236,6 +240,11 @@
                 <i class="fa-regular fa-calendar-days me-1 text-primary"></i> 
                 <strong>Schedule (IST):</strong>
                 <div class="mt-1 font-monospace text-dark">{{ q.start_time.strftime('%b %d, %I:%M %p') }} → {{ q.end_time.strftime('%b %d, %I:%M %p') }}</div>
+                {% if overrides and overrides.get(q.id) and overrides.get(q.id).extended_end_time %}
+                  <div class="text-purple fw-bold small mt-1" style="color: #7c3aed;">
+                    <i class="fa-solid fa-user-clock me-1"></i> Individual Extension: Valid until {{ overrides.get(q.id).extended_end_time.strftime('%b %d, %I:%M %p') }}
+                  </div>
+                {% endif %}
               </div>
             </div>
 

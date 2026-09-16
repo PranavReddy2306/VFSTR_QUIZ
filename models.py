@@ -117,3 +117,17 @@ class Faculty(BaseModel):
     year = db.Column(db.String(10))
     password = db.Column(db.String(100), default="password123")
 
+
+class StudentQuizOverride(BaseModel):
+    __tablename__ = 'student_quiz_override'
+    id = db.Column(db.Integer, primary_key=True)
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    extended_end_time = db.Column(db.DateTime, nullable=True)
+    reason = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    quiz = db.relationship('Quiz', backref=db.backref('student_overrides', cascade='all,delete-orphan', lazy=True))
+    student = db.relationship('User', backref=db.backref('quiz_overrides', cascade='all,delete-orphan', lazy=True))
+
+

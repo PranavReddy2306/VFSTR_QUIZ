@@ -8,7 +8,7 @@ from io import StringIO
 from sqlalchemy import or_
 
 # Local imports
-from models import db, User, Quiz, Question, Attempt, Response
+from models import db, User, Quiz, Question, Attempt, Response, StudentQuizOverride
 from utils import parse_csv_questions, parse_csv_students, parse_csv_faculty
 from config import DevConfig
 
@@ -73,6 +73,18 @@ def ensure_ist(dt):
     if dt.tzinfo is None:
         return dt.replace(tzinfo=IST)
     return dt.astimezone(IST)
+
+
+def get_effective_quiz_end_time(quiz, student_id):
+    """Returns the effective IST end time for a student (checking StudentQuizOverride)."""
+    if not quiz:
+        return None
+    if student_id:
+        override = StudentQuizOverride.query.filter_by(quiz_id=quiz.id, student_id=student_id).first()
+        if override and override.extended_end_time:
+            return convert_to_ist(override.extended_end_time)
+    return convert_to_ist(quiz.end_time)
+
 
 
 def create_app():
@@ -173,7 +185,7 @@ def create_app():
             quiz = db.session.get(Quiz, attempt.quiz_id)
             if not quiz:
                 continue
-            quiz_end_ist = convert_to_ist(quiz.end_time)
+            quiz_end_ist = get_effective_quiz_end_time(quiz, student_id)
             if quiz_end_ist and quiz_end_ist <= now_ist:
                 # grade and finalize the attempt using any saved responses
                 questions = get_attempt_questions(quiz, attempt)
@@ -205,12 +217,12 @@ def create_app():
         quiz = db.session.get(Quiz, quiz_id)
         if not quiz:
             return
-        quiz_end_ist = convert_to_ist(quiz.end_time)
-        if not quiz_end_ist or quiz_end_ist > now_ist:
-            return
         in_progress_attempts = Attempt.query.filter_by(quiz_id=quiz.id, status="in_progress").all()
         updated = False
         for attempt in in_progress_attempts:
+            quiz_end_ist = get_effective_quiz_end_time(quiz, attempt.student_id)
+            if not quiz_end_ist or quiz_end_ist > now_ist:
+                continue
             questions = get_attempt_questions(quiz, attempt)
             responses = {r.question_id: r for r in Response.query.filter_by(attempt_id=attempt.id).all()}
             score = 0
@@ -262,6 +274,50 @@ def create_app():
         logout_user()
         flash("Logged out.", "info")
         return redirect(url_for("login"))
+
+    @app.route("/auth/firebase-login", methods=["POST"])
+    def firebase_login():
+        from firebase_config import verify_firebase_id_token
+        from flask import jsonify
+
+        data = request.get_json() or {}
+        id_token = data.get("id_token")
+
+        if not id_token:
+            return jsonify({"success": False, "message": "Missing ID token"}), 400
+
+        try:
+            decoded = verify_firebase_id_token(id_token)
+            email = decoded.get("email")
+            name = decoded.get("name") or (email.split("@")[0] if email else "Firebase User")
+
+            if not email:
+                return jsonify({"success": False, "message": "Email not found in Firebase token"}), 400
+
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                user = User(
+                    name=name,
+                    email=email,
+                    role="student"
+                )
+                user.set_password("FirebaseAuthUser123!")
+                db.session.add(user)
+                db.session.commit()
+
+            login_user(user)
+
+            if user.role == "manager":
+                target_url = url_for("manager_dashboard")
+            elif user.role == "faculty":
+                target_url = url_for("faculty_dashboard")
+            else:
+                target_url = url_for("student_dashboard")
+
+            return jsonify({"success": True, "redirect_url": target_url})
+
+        except Exception as e:
+            return jsonify({"success": False, "message": f"Firebase auth error: {str(e)}"}), 401
 
     @app.route("/")
     def home():
@@ -761,6 +817,59 @@ def create_app():
         
         flash(f"✅ Successfully promoted {promoted} students to the next academic year{filter_str}!", "success")
         return redirect(url_for("manager_dashboard"))
+
+    @app.route("/manager/delete_students_by_year", methods=["POST"])
+    @login_required
+    def manager_delete_students_by_year():
+        if current_user.role != "manager":
+            abort(403)
+        
+        year_filter = request.form.get("year")
+        dept = request.form.get("department")
+        branch = request.form.get("branch")
+        section = request.form.get("section")
+        
+        query = User.query.filter_by(role="student")
+        
+        filter_desc = []
+        if year_filter and year_filter != "All":
+            query = query.filter_by(year=year_filter)
+            filter_desc.append(f"Year: {year_filter}")
+        elif year_filter == "All":
+            filter_desc.append("All Years")
+            
+        if dept and dept != "All":
+            query = query.filter_by(department=dept)
+            filter_desc.append(f"Dept: {dept}")
+        if branch and branch != "All":
+            query = query.filter_by(branch=branch)
+            filter_desc.append(f"Branch: {branch}")
+        if section and section != "All":
+            query = query.filter_by(section=section)
+            filter_desc.append(f"Sec: {section}")
+            
+        students = query.all()
+        student_ids = [s.id for s in students]
+        
+        if not student_ids:
+            flash("ℹ️ No students found matching the selected filter.", "info")
+            return redirect(request.referrer or url_for("manager_dashboard"))
+            
+        count = len(student_ids)
+        
+        # Cascading cleanup of attempts and responses to prevent foreign key errors
+        attempts = Attempt.query.filter(Attempt.student_id.in_(student_ids)).all()
+        attempt_ids = [a.id for a in attempts]
+        if attempt_ids:
+            Response.query.filter(Response.attempt_id.in_(attempt_ids)).delete(synchronize_session=False)
+            Attempt.query.filter(Attempt.id.in_(attempt_ids)).delete(synchronize_session=False)
+            
+        User.query.filter(User.id.in_(student_ids)).delete(synchronize_session=False)
+        db.session.commit()
+        
+        filter_str = f" ({', '.join(filter_desc)})" if filter_desc else ""
+        flash(f"🗑️ Successfully deleted {count} student(s) and their quiz records{filter_str}.", "success")
+        return redirect(request.referrer or url_for("manager_dashboard"))
     # Edit Faculty
     @app.route('/manager/edit_faculty/<int:id>', methods=['GET', 'POST'])
     @login_required
@@ -878,6 +987,683 @@ def create_app():
         download_name=f"{quiz.title}_{quiz.section}_results.csv",
         mimetype="text/csv"
      )
+
+
+    # ================================
+    # Faculty: Quiz Submissions & Reschedule
+    # ================================
+    @app.route("/faculty/quiz/<int:quiz_id>/submissions")
+    @login_required
+    def quiz_submissions(quiz_id):
+        if current_user.role not in ("faculty", "manager"):
+            abort(403)
+
+        quiz = db.session.get(Quiz, quiz_id)
+        if not quiz:
+            abort(404)
+        if current_user.role == "faculty" and quiz.faculty_id != current_user.id:
+            abort(403)
+
+        finalize_expired_attempts_for_quiz(quiz.id)
+
+        # Build query for target students
+        students_query = User.query.filter_by(role="student")
+        if quiz.department and quiz.department != "All":
+            students_query = students_query.filter_by(department=quiz.department)
+        if quiz.branch and quiz.branch != "All":
+            students_query = students_query.filter_by(branch=quiz.branch)
+        if quiz.section and quiz.section != "All":
+            students_query = students_query.filter_by(section=quiz.section)
+        if quiz.year and quiz.year != "All":
+            students_query = students_query.filter_by(year=str(quiz.year))
+
+        students = students_query.order_by(User.roll_number.asc(), User.name.asc()).all()
+
+        attempts = Attempt.query.filter_by(quiz_id=quiz.id).all()
+        attempts_map = {a.student_id: a for a in attempts}
+
+        overrides = StudentQuizOverride.query.filter_by(quiz_id=quiz.id).all()
+        overrides_map = {o.student_id: o for o in overrides}
+
+        now_ist = datetime.now(IST)
+        quiz_start_ist = convert_to_ist(quiz.start_time)
+        quiz_end_ist = convert_to_ist(quiz.end_time)
+
+        # Calculate max score for quiz
+        total_q_count = len(quiz.questions)
+        active_q_count = quiz.questions_per_student if (quiz.questions_per_student and 0 < quiz.questions_per_student < total_q_count) else total_q_count
+        computed_max_score = active_q_count * (quiz.marks_per_question or 1)
+
+        # Default suggested extension time (24 hours from now)
+        default_extension = (now_ist + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M")
+
+        return render_template(
+            "quiz_submissions.html",
+            quiz=quiz,
+            quiz_start_ist=quiz_start_ist,
+            quiz_end_ist=quiz_end_ist,
+            students=students,
+            attempts_map=attempts_map,
+            overrides_map=overrides_map,
+            computed_max_score=computed_max_score,
+            default_extension=default_extension,
+            now=now_ist
+        )
+
+    @app.route("/faculty/quiz/<int:quiz_id>/reschedule_student/<int:student_id>", methods=["POST"])
+    @login_required
+    def reschedule_student_quiz(quiz_id, student_id):
+        if current_user.role not in ("faculty", "manager"):
+            abort(403)
+
+        quiz = db.session.get(Quiz, quiz_id)
+        if not quiz:
+            abort(404)
+        if current_user.role == "faculty" and quiz.faculty_id != current_user.id:
+            abort(403)
+
+        student = db.session.get(User, student_id)
+        if not student:
+            abort(404)
+
+        extended_end_str = request.form.get("extended_end_time", "").strip()
+        reason = request.form.get("reason", "").strip() or "Faculty rescheduled quiz"
+
+        # Clear existing attempt & responses for this student
+        existing_attempts = Attempt.query.filter_by(quiz_id=quiz.id, student_id=student.id).all()
+        for att in existing_attempts:
+            Response.query.filter_by(attempt_id=att.id).delete()
+            db.session.delete(att)
+
+        now_ist = datetime.now(IST)
+        quiz_end_ist = convert_to_ist(quiz.end_time)
+
+        # Determine extended end time
+        extended_dt = None
+        if extended_end_str:
+            try:
+                extended_dt = convert_to_ist(extended_end_str)
+            except Exception as e:
+                flash(f"⚠️ Warning: Invalid extended date format ({e}). Standard quiz window used.", "warning")
+        elif quiz_end_ist and quiz_end_ist <= now_ist:
+            # If quiz already expired and no end time given, grant +24h window by default
+            extended_dt = now_ist + timedelta(hours=24)
+
+        # Update or create override
+        override = StudentQuizOverride.query.filter_by(quiz_id=quiz.id, student_id=student.id).first()
+        if not override:
+            override = StudentQuizOverride(quiz_id=quiz.id, student_id=student.id)
+
+        if extended_dt:
+            override.extended_end_time = extended_dt.replace(tzinfo=None)
+        else:
+            override.extended_end_time = None
+        override.reason = reason
+        db.session.add(override)
+        db.session.commit()
+
+        time_msg = f" until {extended_dt.strftime('%b %d, %Y %I:%M %p IST')}" if extended_dt else ""
+        flash(f"✅ Quiz '{quiz.title}' successfully rescheduled for {student.name} ({student.roll_number or student.email}){time_msg}. Previous attempt cleared.", "success")
+
+        return redirect(request.referrer or url_for("quiz_submissions", quiz_id=quiz.id))
+
+
+    # ================================
+    # Master Marks Sheet Logic & Routes
+    # ================================
+    def get_available_classes_map():
+        """Returns structured dict of available years, branches, and sections."""
+        student_classes = db.session.query(
+            User.year, User.branch, User.section
+        ).filter(
+            User.role == "student",
+            User.year != None,
+            User.branch != None,
+            User.section != None
+        ).distinct().all()
+
+        quiz_classes = db.session.query(
+            Quiz.year, Quiz.branch, Quiz.section
+        ).filter(
+            Quiz.year != None,
+            Quiz.branch != None,
+            Quiz.section != None,
+            Quiz.year != "All",
+            Quiz.branch != "All",
+            Quiz.section != "All"
+        ).distinct().all()
+
+        combined = set(student_classes).union(set(quiz_classes))
+        from collections import defaultdict
+        years_map = defaultdict(lambda: defaultdict(set))
+        for yr, br, sec in combined:
+            if yr and br and sec and str(yr).strip() and str(br).strip() and str(sec).strip():
+                years_map[str(yr).strip()][str(br).strip()].add(str(sec).strip())
+
+        result = {}
+        custom_year_order = {"1": 1, "2": 2, "3": 3, "4": 4, "Graduated": 5}
+        sorted_years = sorted(years_map.keys(), key=lambda y: custom_year_order.get(y, 99))
+        for yr in sorted_years:
+            result[yr] = {}
+            for br in sorted(years_map[yr].keys()):
+                result[yr][br] = sorted(list(years_map[yr][br]))
+        return result
+
+    def get_master_marks_context(year, branch, section, filter_status="conducted"):
+        """
+        Builds consolidated master marks matrix for a specific class (year, branch, section).
+        Considers quizzes targeted directly or with 'All'.
+        Finalizes expired attempts so marks are completely up to date.
+        """
+        now_ist = datetime.now(IST)
+        
+        # 1. Fetch matching quizzes for this class
+        quizzes_query = Quiz.query.filter(
+            or_(Quiz.year == str(year), Quiz.year == "All"),
+            or_(Quiz.branch == str(branch), Quiz.branch == "All"),
+            or_(Quiz.section == str(section), Quiz.section == "All"),
+        ).order_by(Quiz.start_time.asc(), Quiz.id.asc())
+        
+        raw_quizzes = quizzes_query.all()
+        quizzes = []
+        for q in raw_quizzes:
+            q_start_ist = convert_to_ist(q.start_time)
+            q_end_ist = convert_to_ist(q.end_time)
+            q.start_ist = q_start_ist
+            q.end_ist = q_end_ist
+            
+            # Calculate quiz max score
+            total_q_count = len(q.questions)
+            active_q_count = q.questions_per_student if (q.questions_per_student and 0 < q.questions_per_student < total_q_count) else total_q_count
+            q.computed_max_score = active_q_count * (q.marks_per_question or 1)
+            
+            # Status
+            if q_end_ist and q_end_ist < now_ist:
+                q.computed_status = "Ended"
+            elif q_start_ist and q_start_ist <= now_ist:
+                q.computed_status = "Live"
+            else:
+                q.computed_status = "Upcoming"
+                
+            # Filter condition: conducted only (started) vs all
+            if filter_status == "all" or q.computed_status in ("Ended", "Live"):
+                # Pre-finalize attempts if expired
+                finalize_expired_attempts_for_quiz(q.id)
+                quizzes.append(q)
+
+        # 2. Fetch all registered students in this class
+        students = User.query.filter_by(
+            role="student",
+            year=str(year),
+            branch=str(branch),
+            section=str(section)
+        ).order_by(User.roll_number.asc(), User.name.asc()).all()
+
+        # 3. Fetch all attempts in bulk
+        quiz_ids = [q.id for q in quizzes]
+        student_ids = [s.id for s in students]
+        attempts = Attempt.query.filter(
+            Attempt.quiz_id.in_(quiz_ids),
+            Attempt.student_id.in_(student_ids)
+        ).all() if (quiz_ids and student_ids) else []
+
+        attempts_map = {(a.student_id, a.quiz_id): a for a in attempts}
+
+        # 4. Build per-student rows
+        matrix = []
+        total_class_max = sum(q.computed_max_score for q in quizzes)
+        quiz_stats = {q.id: {"total_score": 0, "attended_count": 0, "max_score": 0, "min_score": 9999} for q in quizzes}
+
+        for idx, s in enumerate(students, 1):
+            s_data = {
+                "sno": idx,
+                "student": s,
+                "scores": {},
+                "total_obtained": 0,
+                "total_max": total_class_max,
+                "percentage": 0.0,
+                "attended_count": 0,
+            }
+
+            for q in quizzes:
+                att = attempts_map.get((s.id, q.id))
+                q_max = q.computed_max_score
+                if att and att.status == "submitted":
+                    score = att.score if att.score is not None else 0
+                    s_data["scores"][q.id] = {
+                        "score": score,
+                        "max_score": q_max,
+                        "status": "submitted",
+                        "is_absent": False,
+                        "submitted_at": convert_to_ist(att.submitted_at) if att.submitted_at else None
+                    }
+                    s_data["total_obtained"] += score
+                    s_data["attended_count"] += 1
+                    quiz_stats[q.id]["total_score"] += score
+                    quiz_stats[q.id]["attended_count"] += 1
+                    if score > quiz_stats[q.id]["max_score"]:
+                        quiz_stats[q.id]["max_score"] = score
+                    if score < quiz_stats[q.id]["min_score"]:
+                        quiz_stats[q.id]["min_score"] = score
+                elif att and att.status == "in_progress":
+                    score = att.score if att.score is not None else 0
+                    s_data["scores"][q.id] = {
+                        "score": score,
+                        "max_score": q_max,
+                        "status": "in_progress",
+                        "is_absent": False,
+                        "submitted_at": None
+                    }
+                    s_data["total_obtained"] += score
+                    s_data["attended_count"] += 1
+                    quiz_stats[q.id]["total_score"] += score
+                    quiz_stats[q.id]["attended_count"] += 1
+                else:
+                    s_data["scores"][q.id] = {
+                        "score": 0,
+                        "max_score": q_max,
+                        "status": "absent",
+                        "is_absent": True,
+                        "submitted_at": None
+                    }
+
+            if total_class_max > 0:
+                s_data["percentage"] = round((s_data["total_obtained"] / total_class_max) * 100, 2)
+            else:
+                s_data["percentage"] = 0.0
+                
+            matrix.append(s_data)
+
+        # Sort by total_obtained desc to assign rank
+        sorted_by_marks = sorted(matrix, key=lambda x: x["total_obtained"], reverse=True)
+        for rank_idx, item in enumerate(sorted_by_marks, 1):
+            item["rank"] = rank_idx
+
+        # Calculate per-quiz stats
+        for q in quizzes:
+            q_stat = quiz_stats[q.id]
+            if q_stat["attended_count"] > 0:
+                q_stat["average_score"] = round(q_stat["total_score"] / q_stat["attended_count"], 2)
+                q_stat["attendance_pct"] = round((q_stat["attended_count"] / len(students)) * 100, 1) if students else 0
+            else:
+                q_stat["average_score"] = 0.0
+                q_stat["attendance_pct"] = 0.0
+                q_stat["min_score"] = 0
+
+        total_students_count = len(students)
+        class_avg_score = round(sum(m["total_obtained"] for m in matrix) / total_students_count, 2) if total_students_count else 0.0
+        class_avg_pct = round(sum(m["percentage"] for m in matrix) / total_students_count, 2) if total_students_count else 0.0
+        highest_score = max((m["total_obtained"] for m in matrix), default=0)
+        lowest_score = min((m["total_obtained"] for m in matrix), default=0) if matrix else 0
+        top_student = sorted_by_marks[0]["student"] if sorted_by_marks else None
+
+        return {
+            "year": str(year),
+            "branch": str(branch),
+            "section": str(section),
+            "filter_status": filter_status,
+            "quizzes": quizzes,
+            "students": students,
+            "matrix": matrix,
+            "quiz_stats": quiz_stats,
+            "total_class_max": total_class_max,
+            "total_students_count": total_students_count,
+            "class_avg_score": class_avg_score,
+            "class_avg_pct": class_avg_pct,
+            "highest_score": highest_score,
+            "lowest_score": lowest_score,
+            "top_student": top_student,
+        }
+
+    @app.route("/master_marks_sheet")
+    @login_required
+    def master_marks_sheet():
+        if current_user.role not in ("faculty", "manager"):
+            abort(403)
+
+        classes_map = get_available_classes_map()
+        available_years = list(classes_map.keys())
+
+        # Read query params
+        req_year = request.args.get("year")
+        req_branch = request.args.get("branch")
+        req_section = request.args.get("section")
+        filter_status = request.args.get("filter_status", "conducted")
+
+        # Resolve defaults if not provided
+        year = req_year
+        branch = req_branch
+        section = req_section
+
+        if not (year and branch and section):
+            # Try from current faculty user
+            if current_user.role == "faculty":
+                if current_user.year and current_user.branch and current_user.section:
+                    year = str(current_user.year)
+                    branch = current_user.branch
+                    section = current_user.section
+                else:
+                    # check quizzes created by this faculty
+                    fq = Quiz.query.filter_by(faculty_id=current_user.id).order_by(Quiz.created_at.desc()).first()
+                    if fq and fq.year != "All" and fq.branch != "All" and fq.section != "All":
+                        year = str(fq.year)
+                        branch = fq.branch
+                        section = fq.section
+
+            # Fallback to first available class in DB
+            if not (year and branch and section) and available_years:
+                for yr in available_years:
+                    branches = list(classes_map[yr].keys())
+                    if branches:
+                        br = branches[0]
+                        sections = classes_map[yr][br]
+                        if sections:
+                            year = yr
+                            branch = br
+                            section = sections[0]
+                            break
+
+        context = {
+            "quizzes": [],
+            "students": [],
+            "matrix": [],
+            "quiz_stats": {},
+            "total_class_max": 0,
+            "total_students_count": 0,
+            "class_avg_score": 0,
+            "class_avg_pct": 0,
+            "highest_score": 0,
+            "lowest_score": 0,
+            "top_student": None,
+            "filter_status": filter_status,
+        }
+        if year and branch and section:
+            context.update(get_master_marks_context(year, branch, section, filter_status))
+
+        import json
+        return render_template(
+            "master_marks_sheet.html",
+            classes_map=classes_map,
+            classes_map_json=json.dumps(classes_map),
+            available_years=available_years,
+            selected_year=year,
+            selected_branch=branch,
+            selected_section=section,
+            **context
+        )
+
+    @app.route("/master_marks_sheet/export/excel")
+    @login_required
+    def export_master_marks_excel():
+        if current_user.role not in ("faculty", "manager"):
+            abort(403)
+
+        year = request.args.get("year", "1")
+        branch = request.args.get("branch", "AIML")
+        section = request.args.get("section", "A")
+        filter_status = request.args.get("filter_status", "conducted")
+
+        data = get_master_marks_context(year, branch, section, filter_status)
+        quizzes = data["quizzes"]
+        matrix = data["matrix"]
+
+        import openpyxl
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f"Yr{year}_{branch}_{section}"
+        ws.views.sheetView[0].showGridLines = True
+
+        title_font = Font(name="Calibri", size=14, bold=True, color="1E3A8A")
+        subtitle_font = Font(name="Calibri", size=11, bold=True, color="1E293B")
+        meta_font = Font(name="Calibri", size=10, italic=True, color="64748B")
+
+        # Top banner
+        total_cols = max(7 + len(quizzes), 7)
+        last_col_letter = get_column_letter(total_cols)
+
+        ws.merge_cells(f"A1:{last_col_letter}1")
+        ws["A1"] = "VIGNAN'S FOUNDATION FOR SCIENCE, TECHNOLOGY AND RESEARCH (VFSTR)"
+        ws["A1"].font = title_font
+        ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 24
+
+        ws.merge_cells(f"A2:{last_col_letter}2")
+        ws["A2"] = "CONSOLIDATED CLASS MASTER MARKS SHEET"
+        ws["A2"].font = subtitle_font
+        ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[2].height = 20
+
+        now_str = datetime.now(IST).strftime("%d-%b-%Y %I:%M %p")
+        ws.merge_cells(f"A3:{last_col_letter}3")
+        ws["A3"] = f"Academic Year: {year}   |   Branch: {branch}   |   Section: {section}   |   Quizzes Conducted: {len(quizzes)}   |   Generated: {now_str} IST"
+        ws["A3"].font = meta_font
+        ws["A3"].alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[3].height = 18
+
+        # Headers
+        headers = ["S.No", "Roll Number", "Student Name"]
+        for q in quizzes:
+            headers.append(f"{q.title}\n(Max: {q.computed_max_score})")
+        headers.extend(["Total Obtained", "Max Marks", "Percentage (%)", "Exams Attended", "Class Rank"])
+
+        header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+        header_font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+        thin_border = Border(
+            left=Side(style='thin', color='CBD5E1'),
+            right=Side(style='thin', color='CBD5E1'),
+            top=Side(style='thin', color='CBD5E1'),
+            bottom=Side(style='thin', color='CBD5E1')
+        )
+
+        header_row = 5
+        ws.row_dimensions[header_row].height = 32
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=header_row, column=col_idx, value=h)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = thin_border
+
+        # Student data rows
+        absent_fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+        absent_font = Font(name="Calibri", size=10, bold=True, color="991B1B")
+        zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+        regular_font = Font(name="Calibri", size=10)
+        bold_font = Font(name="Calibri", size=10, bold=True)
+
+        current_row = header_row
+        for idx, row_data in enumerate(matrix, 1):
+            current_row += 1
+            ws.row_dimensions[current_row].height = 20
+            fill = zebra_fill if (idx % 2 == 0) else None
+
+            # S.No
+            c = ws.cell(row=current_row, column=1, value=row_data["sno"])
+            c.alignment = Alignment(horizontal="center")
+            
+            # Roll Number
+            c = ws.cell(row=current_row, column=2, value=row_data["student"].roll_number)
+            c.alignment = Alignment(horizontal="center")
+
+            # Student Name
+            c = ws.cell(row=current_row, column=3, value=row_data["student"].name)
+            c.alignment = Alignment(horizontal="left")
+
+            # Quiz scores
+            col_pos = 4
+            for q in quizzes:
+                q_info = row_data["scores"].get(q.id, {})
+                cell = ws.cell(row=current_row, column=col_pos)
+                if q_info.get("is_absent", True):
+                    cell.value = "ABSENT"
+                    cell.fill = absent_fill
+                    cell.font = absent_font
+                    cell.alignment = Alignment(horizontal="center")
+                else:
+                    cell.value = q_info.get("score", 0)
+                    cell.alignment = Alignment(horizontal="center")
+                    cell.font = regular_font
+                    if fill:
+                        cell.fill = fill
+                cell.border = thin_border
+                col_pos += 1
+
+            # Totals
+            # Total Obtained
+            c = ws.cell(row=current_row, column=col_pos, value=row_data["total_obtained"])
+            c.alignment = Alignment(horizontal="center")
+            c.font = bold_font
+            c.border = thin_border
+            if fill: c.fill = fill
+            col_pos += 1
+
+            # Max Marks
+            c = ws.cell(row=current_row, column=col_pos, value=row_data["total_max"])
+            c.alignment = Alignment(horizontal="center")
+            c.font = regular_font
+            c.border = thin_border
+            if fill: c.fill = fill
+            col_pos += 1
+
+            # Percentage
+            c = ws.cell(row=current_row, column=col_pos, value=row_data["percentage"])
+            c.alignment = Alignment(horizontal="center")
+            c.font = bold_font
+            c.border = thin_border
+            if fill: c.fill = fill
+            col_pos += 1
+
+            # Exams Attended
+            c = ws.cell(row=current_row, column=col_pos, value=f"{row_data['attended_count']}/{len(quizzes)}")
+            c.alignment = Alignment(horizontal="center")
+            c.font = regular_font
+            c.border = thin_border
+            if fill: c.fill = fill
+            col_pos += 1
+
+            # Rank
+            c = ws.cell(row=current_row, column=col_pos, value=row_data.get("rank", "-"))
+            c.alignment = Alignment(horizontal="center")
+            c.font = regular_font
+            c.border = thin_border
+            if fill: c.fill = fill
+
+            for col_i in (1, 2, 3):
+                c = ws.cell(row=current_row, column=col_i)
+                c.border = thin_border
+                c.font = regular_font if col_i != 2 else bold_font
+                if fill: c.fill = fill
+
+        # Summary Average Row at the bottom
+        if matrix and quizzes:
+            current_row += 1
+            ws.row_dimensions[current_row].height = 22
+            summary_fill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+            summary_font = Font(name="Calibri", size=10, bold=True, color="1E293B")
+            
+            c = ws.cell(row=current_row, column=1, value="")
+            c.fill = summary_fill; c.border = thin_border
+            c = ws.cell(row=current_row, column=2, value="")
+            c.fill = summary_fill; c.border = thin_border
+            c = ws.cell(row=current_row, column=3, value="CLASS AVERAGE")
+            c.fill = summary_fill; c.font = summary_font; c.border = thin_border; c.alignment = Alignment(horizontal="right")
+
+            col_pos = 4
+            for q in quizzes:
+                avg = data["quiz_stats"].get(q.id, {}).get("average_score", 0.0)
+                c = ws.cell(row=current_row, column=col_pos, value=avg)
+                c.fill = summary_fill; c.font = summary_font; c.border = thin_border; c.alignment = Alignment(horizontal="center")
+                col_pos += 1
+
+            c = ws.cell(row=current_row, column=col_pos, value=data["class_avg_score"])
+            c.fill = summary_fill; c.font = summary_font; c.border = thin_border; c.alignment = Alignment(horizontal="center"); col_pos += 1
+            c = ws.cell(row=current_row, column=col_pos, value=data["total_class_max"])
+            c.fill = summary_fill; c.font = summary_font; c.border = thin_border; c.alignment = Alignment(horizontal="center"); col_pos += 1
+            c = ws.cell(row=current_row, column=col_pos, value=f"{data['class_avg_pct']}%")
+            c.fill = summary_fill; c.font = summary_font; c.border = thin_border; c.alignment = Alignment(horizontal="center"); col_pos += 1
+            c = ws.cell(row=current_row, column=col_pos, value="")
+            c.fill = summary_fill; c.border = thin_border; col_pos += 1
+            c = ws.cell(row=current_row, column=col_pos, value="")
+            c.fill = summary_fill; c.border = thin_border
+
+        # Auto-fit columns
+        for col in ws.columns:
+            max_len = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                # ignore merged title banner cells
+                if cell.row in (1, 2, 3):
+                    continue
+                val_str = str(cell.value or "")
+                first_line = val_str.split("\n")[0]
+                if len(first_line) > max_len:
+                    max_len = len(first_line)
+            ws.column_dimensions[col_letter].width = max(max_len + 4, 11)
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        filename = f"Master_Marks_{branch}_Sec_{section}_Year_{year}.xlsx"
+        return send_file(
+            buf,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    @app.route("/master_marks_sheet/export/csv")
+    @login_required
+    def export_master_marks_csv():
+        if current_user.role not in ("faculty", "manager"):
+            abort(403)
+
+        year = request.args.get("year", "1")
+        branch = request.args.get("branch", "AIML")
+        section = request.args.get("section", "A")
+        filter_status = request.args.get("filter_status", "conducted")
+
+        data = get_master_marks_context(year, branch, section, filter_status)
+        quizzes = data["quizzes"]
+        matrix = data["matrix"]
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Header row
+        header = ["S.No", "Roll Number", "Student Name"]
+        for q in quizzes:
+            header.append(f"{q.title} (Max: {q.computed_max_score})")
+        header.extend(["Total Obtained", "Max Marks", "Percentage (%)", "Exams Attended", "Class Rank"])
+        writer.writerow(header)
+
+        for row in matrix:
+            r = [row["sno"], row["student"].roll_number, row["student"].name]
+            for q in quizzes:
+                q_info = row["scores"].get(q.id, {})
+                if q_info.get("is_absent", True):
+                    r.append("ABSENT")
+                else:
+                    r.append(q_info.get("score", 0))
+            r.extend([
+                row["total_obtained"],
+                row["total_max"],
+                row["percentage"],
+                f"{row['attended_count']}/{len(quizzes)}",
+                row.get("rank", "-")
+            ])
+            writer.writerow(r)
+
+        output.seek(0)
+        filename = f"Master_Marks_{branch}_Sec_{section}_Year_{year}.csv"
+        return send_file(
+            io.BytesIO(output.getvalue().encode("utf-8")),
+            as_attachment=True,
+            download_name=filename,
+            mimetype="text/csv"
+        )
 
 
     @app.route('/faculty/delete_quiz/<int:id>', methods=['POST'])
@@ -1072,10 +1858,19 @@ def create_app():
                                 except Exception:
                                     content = raw_bytes.decode("latin-1", errors="replace")
                             elif any(fname_lower.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]):
+                                img_bytes = z.read(z_info)
                                 out_path = os.path.join(target_dir, fname)
                                 with open(out_path, "wb") as f_out:
-                                    f_out.write(z.read(z_info))
+                                    f_out.write(img_bytes)
                                 rel_url = f"/static/uploads/quiz_diagrams/{upload_folder_id}/{fname}"
+
+                                try:
+                                    from firebase_config import is_firebase_initialized, upload_file_to_firebase_storage
+                                    if is_firebase_initialized():
+                                        rel_url = upload_file_to_firebase_storage(img_bytes, f"diagrams/{upload_folder_id}/{fname}")
+                                except Exception:
+                                    pass
+
                                 extracted_images[fname_lower] = rel_url
 
                         if not content:
@@ -1299,12 +2094,18 @@ def create_app():
             or_(Quiz.section == current_user.section, Quiz.section == "All"),
             or_(Quiz.year == current_user.year, Quiz.year == "All"),
         ).order_by(Quiz.start_time.asc()).all()
+
+        overrides = {o.quiz_id: o for o in StudentQuizOverride.query.filter_by(student_id=current_user.id).all()}
+        effective_ends = {}
+
         # Display quiz times in IST for students
         for q in quizzes:
             q.start_time = convert_to_ist(q.start_time)
-            q.end_time = convert_to_ist(q.end_time)
+            effective_ends[q.id] = get_effective_quiz_end_time(q, current_user.id)
+            q.end_time = effective_ends[q.id]
+
         attempts = {a.quiz_id: a for a in Attempt.query.filter_by(student_id=current_user.id).all()}
-        return render_template("student_dashboard.html", quizzes=quizzes, attempts=attempts, now=now)
+        return render_template("student_dashboard.html", quizzes=quizzes, attempts=attempts, overrides=overrides, effective_ends=effective_ends, now=now)
     
     @app.route('/manager/edit_student/<int:id>', methods=['GET', 'POST'])
     @login_required
@@ -1327,11 +2128,23 @@ def create_app():
     @app.route('/manager/delete_student/<int:id>', methods=['POST'])
     @login_required
     def delete_student(id):
-     student = User.query.get_or_404(id)
-     db.session.delete(student)
-     db.session.commit()
-     flash('Student deleted successfully!', 'success')
-     return redirect(url_for('manager_dashboard'))
+        if current_user.role != "manager":
+            abort(403)
+        student = User.query.get_or_404(id)
+        name = student.name
+        roll = student.roll_number or ""
+        
+        # Cascading cleanup of attempts & responses to avoid foreign key errors
+        attempts = Attempt.query.filter_by(student_id=student.id).all()
+        attempt_ids = [a.id for a in attempts]
+        if attempt_ids:
+            Response.query.filter(Response.attempt_id.in_(attempt_ids)).delete(synchronize_session=False)
+            Attempt.query.filter(Attempt.id.in_(attempt_ids)).delete(synchronize_session=False)
+            
+        db.session.delete(student)
+        db.session.commit()
+        flash(f'Student {name} ({roll}) deleted successfully!', 'success')
+        return redirect(request.referrer or url_for('manager_dashboard'))
 
 
     @app.route("/student/quiz/<int:quiz_id>/start", methods=["GET", "POST"])
@@ -1345,7 +2158,7 @@ def create_app():
 
         # Use IST only for both display and comparison per user request
         quiz_start_ist = convert_to_ist(quiz.start_time)
-        quiz_end_ist = convert_to_ist(quiz.end_time)
+        quiz_end_ist = get_effective_quiz_end_time(quiz, current_user.id)
         now_ist = datetime.now(IST)
 
         can_start = (quiz_start_ist <= now_ist <= quiz_end_ist)
@@ -1420,7 +2233,7 @@ def create_app():
             abort(404)
         # Use IST for display and comparison
         quiz_start_ist = convert_to_ist(quiz.start_time)
-        quiz_end_ist = convert_to_ist(quiz.end_time)
+        quiz_end_ist = get_effective_quiz_end_time(quiz, current_user.id)
         now = datetime.now(IST)
 
         # Handle POST (submission) first — accept submissions even if now > quiz_end_ist
@@ -1550,6 +2363,6 @@ with app.app_context():
 
 if __name__ == "__main__":
     # Allow configuring the host and port via environment variables.
-    host = os.environ.get("FLASK_RUN_HOST", "192.168.0.105")
+    host = os.environ.get("FLASK_RUN_HOST", "172.25.188.177")
     port = int(os.environ.get("PORT", 5000))
     app.run(host=host, port=port, debug=True)

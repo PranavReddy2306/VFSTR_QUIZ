@@ -16,6 +16,10 @@ instance/
 .vscode/
 .idea/
 
+# Firebase Credentials
+serviceAccountKey.json
+*.json.secret
+
 # OS junk
 .DS_Store
 Thumbs.db
