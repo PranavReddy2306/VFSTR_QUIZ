@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, abort, send_file
+from flask import Flask, render_template, redirect, url_for, request, flash, abort, send_file, jsonify
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -2344,6 +2344,108 @@ def create_app():
             flash("❌ You haven't submitted this quiz yet.", "danger")
             return redirect(url_for("student_dashboard"))
         return render_template("quiz_result.html", quiz=quiz, attempt=attempt)
+
+    # ================================
+    # Online Code Compiler Routes
+    # ================================
+    @app.route("/compiler")
+    def compiler_page():
+        return render_template("compiler.html")
+
+    @app.route("/api/compiler/run", methods=["POST"])
+    def run_code():
+        data = request.get_json() or {}
+        lang = data.get("language", "c").lower()
+        code = data.get("code", "")
+        user_input = data.get("input", "")
+
+        if not code.strip():
+            return jsonify({"status": "error", "error": "No code provided to compile."})
+
+        import tempfile, subprocess, time
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            start_time = time.time()
+            exec_time_str = "0.00s"
+
+            try:
+                if lang in ("c", "cpp", "c++"):
+                    ext = "cpp" if lang in ("cpp", "c++") else "c"
+                    comp = "g++" if lang in ("cpp", "c++") else "gcc"
+                    src_file = os.path.join(temp_dir, f"main.{ext}")
+                    exe_file = os.path.join(temp_dir, "main.exe" if os.name == "nt" else "main")
+
+                    with open(src_file, "w", encoding="utf-8") as f:
+                        f.write(code)
+
+                    # Compile
+                    compile_cmd = [comp, src_file, "-o", exe_file]
+                    compile_res = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
+                    if compile_res.returncode != 0:
+                        return jsonify({
+                            "status": "compile_error",
+                            "error": compile_res.stderr or compile_res.stdout,
+                            "execution_time": f"{round(time.time() - start_time, 2)}s"
+                        })
+
+                    # Run
+                    run_res = subprocess.run([exe_file], input=user_input, capture_output=True, text=True, timeout=5)
+                    exec_time_str = f"{round(time.time() - start_time, 2)}s"
+                    return jsonify({
+                        "status": "success" if run_res.returncode == 0 else "error",
+                        "output": run_res.stdout,
+                        "error": run_res.stderr,
+                        "execution_time": exec_time_str
+                    })
+
+                elif lang == "python":
+                    src_file = os.path.join(temp_dir, "main.py")
+                    with open(src_file, "w", encoding="utf-8") as f:
+                        f.write(code)
+
+                    py_cmd = [os.sys.executable, src_file]
+                    run_res = subprocess.run(py_cmd, input=user_input, capture_output=True, text=True, timeout=5)
+                    exec_time_str = f"{round(time.time() - start_time, 2)}s"
+                    return jsonify({
+                        "status": "success" if run_res.returncode == 0 else "error",
+                        "output": run_res.stdout,
+                        "error": run_res.stderr,
+                        "execution_time": exec_time_str
+                    })
+
+                elif lang == "java":
+                    src_file = os.path.join(temp_dir, "Main.java")
+                    with open(src_file, "w", encoding="utf-8") as f:
+                        f.write(code)
+
+                    compile_res = subprocess.run(["javac", src_file], capture_output=True, text=True, timeout=10)
+                    if compile_res.returncode != 0:
+                        return jsonify({
+                            "status": "compile_error",
+                            "error": compile_res.stderr or compile_res.stdout,
+                            "execution_time": f"{round(time.time() - start_time, 2)}s"
+                        })
+
+                    run_res = subprocess.run(["java", "-cp", temp_dir, "Main"], input=user_input, capture_output=True, text=True, timeout=5)
+                    exec_time_str = f"{round(time.time() - start_time, 2)}s"
+                    return jsonify({
+                        "status": "success" if run_res.returncode == 0 else "error",
+                        "output": run_res.stdout,
+                        "error": run_res.stderr,
+                        "execution_time": exec_time_str
+                    })
+
+                else:
+                    return jsonify({"status": "error", "error": f"Unsupported language: {lang}"})
+
+            except subprocess.TimeoutExpired:
+                return jsonify({
+                    "status": "timeout",
+                    "error": "Execution timed out (limit: 5 seconds). Ensure your program doesn't have infinite loops.",
+                    "execution_time": "5.00s+"
+                })
+            except Exception as e:
+                return jsonify({"status": "error", "error": str(e)})
 
     return app
 

@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Online Code Compiler | VFSTR Quiz Platform{% endblock %}
+
+{% block content %}
+<div class="compiler-wrapper container-fluid py-4 px-3 px-md-4">
+  <div class="card bg-dark text-white border-secondary shadow-lg rounded-4 overflow-hidden">
+    <!-- Top Studio Header -->
+    <div class="card-header bg-dark border-secondary py-3 px-4 d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="bg-primary bg-gradient text-white p-2 rounded-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+          <i class="fa-solid fa-code fs-5"></i>
+        </div>
+        <div>
+          <h5 class="mb-0 font-heading fw-bold">VFSTR Online Compiler Studio</h5>
+          <small class="text-muted">Compile & execute C, C++, Python, and Java programs in real-time</small>
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="input-group input-group-sm" style="width: 170px;">
+          <label class="input-group-text bg-secondary text-white border-secondary" for="languageSelect">
+            <i class="fa-solid fa-terminal me-1"></i> Lang
+          </label>
+          <select class="form-select bg-dark text-white border-secondary" id="languageSelect" onchange="changeLanguage()">
+            <option value="c" selected>C (GCC 15.1)</option>
+            <option value="cpp">C++ (G++ 15.1)</option>
+            <option value="python">Python (3.14)</option>
+            <option value="java">Java (JDK 19)</option>
+          </select>
+        </div>
+
+        <button class="btn btn-sm btn-outline-secondary text-white d-flex align-items-center gap-1" onclick="resetCode()" title="Reset to Starter Template">
+          <i class="fa-solid fa-rotate-left"></i> Reset
+        </button>
+        <button class="btn btn-sm btn-outline-secondary text-white d-flex align-items-center gap-1" onclick="copyCode()" title="Copy Code">
+          <i class="fa-solid fa-copy"></i> Copy
+        </button>
+
+        <button class="btn btn-sm btn-success px-4 fw-bold d-flex align-items-center gap-2 shadow" id="runBtn" onclick="executeCode()">
+          <i class="fa-solid fa-play"></i> Run Code
+        </button>
+      </div>
+    </div>
+
+    <div class="card-body p-0">
+      <div class="row g-0">
+        <!-- Code Editor Section -->
+        <div class="col-lg-7 border-end border-secondary d-flex flex-column" style="min-height: 520px;">
+          <div class="bg-dark border-bottom border-secondary px-3 py-2 d-flex justify-content-between align-items-center text-muted small font-monospace">
+            <span><i class="fa-regular fa-file-code me-1 text-info"></i> <span id="fileNameDisplay">main.c</span></span>
+            <span>Shortcut: <kbd class="bg-secondary text-white">Ctrl + Enter</kbd></span>
+          </div>
+
+          <div class="flex-grow-1 position-relative bg-dark">
+            <textarea id="codeEditor" class="form-control bg-dark text-light border-0 p-3 font-monospace" 
+                      style="font-size: 14px; line-height: 1.6; resize: none; height: 480px; tab-size: 4;" 
+                      placeholder="// Type your code here..." spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <!-- Right Output & Stdin Panel -->
+        <div class="col-lg-5 d-flex flex-column bg-dark" style="min-height: 520px;">
+          <!-- Custom Stdin Input -->
+          <div class="p-3 border-bottom border-secondary">
+            <label for="stdinInput" class="form-label text-muted small fw-bold font-heading mb-2">
+              <i class="fa-solid fa-keyboard text-warning me-1"></i> Custom Input (stdin)
+            </label>
+            <textarea id="stdinInput" class="form-control bg-secondary bg-opacity-25 text-white border-secondary font-monospace" 
+                      rows="3" style="font-size: 13px; resize: vertical;" 
+                      placeholder="Enter inputs here (e.g. 10 20)..."></textarea>
+          </div>
+
+          <!-- Console Output Header -->
+          <div class="px-3 py-2 bg-dark border-bottom border-secondary d-flex justify-content-between align-items-center">
+            <span class="text-muted small fw-bold font-heading">
+              <i class="fa-solid fa-square-poll-vertical me-1 text-primary"></i> Execution Console
+            </span>
+            <span id="execBadge" class="badge bg-secondary font-monospace">Ready</span>
+          </div>
+
+          <!-- Output Box -->
+          <div class="flex-grow-1 p-3 font-monospace position-relative" style="background-color: #0b0f19;">
+            <div id="loadingState" class="d-none text-center py-5">
+              <div class="spinner-border text-info mb-2" role="status"></div>
+              <p class="text-muted small">Compiling & executing your program...</p>
+            </div>
+
+            <div id="outputDisplay" class="h-100" style="overflow-y: auto; max-height: 340px;">
+              <pre id="stdoutText" class="text-light m-0 font-monospace" style="font-size: 13.5px; white-space: pre-wrap;">Click "Run Code" to compile and execute your program.</pre>
+            </div>
+          </div>
+
+          <!-- Execution Stats Footer -->
+          <div class="p-2 px-3 border-top border-secondary bg-dark text-muted small font-monospace d-flex justify-content-between align-items-center">
+            <span>Status: <strong id="statusText" class="text-light">Idle</strong></span>
+            <span>Time: <strong id="timeText" class="text-info">0.00s</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STARTER_CODES = {
+  c: `#include <stdio.h>
+
+int main() {
+    printf("Hello, VFSTR CRT Quiz Platform!\\n");
+    int a = 10, b = 20;
+    printf("Sum of %d and %d is: %d\\n", a, b, a + b);
+    return 0;
+}`,
+
+  cpp: `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello, C++ Programming!" << endl;
+    int x, y;
+    cout << "Enter two numbers (or provide via stdin input box): ";
+    if (cin >> x >> y) {
+        cout << "Result: " << (x + y) << endl;
+    } else {
+        cout << "\\n(Default mode: No input provided)" << endl;
+    }
+    return 0;
+}`,
+
+  python: `# Python Program
+def main():
+    print("Hello from Python Compiler!")
+    numbers = [1, 2, 3, 4, 5]
+    print(f"List: {numbers}")
+    print(f"Sum: {sum(numbers)}")
+
+if __name__ == "__main__":
+    main()
+`,
+
+  java: `public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, Java Compiler Studio!");
+        int num1 = 15, num2 = 25;
+        System.out.println("Sum: " + (num1 + num2));
+    }
+}`
+};
+
+const FILE_NAMES = {
+  c: "main.c",
+  cpp: "main.cpp",
+  python: "main.py",
+  java: "Main.java"
+};
+
+const editor = document.getElementById("codeEditor");
+const langSelect = document.getElementById("languageSelect");
+const fileNameDisplay = document.getElementById("fileNameDisplay");
+const stdinInput = document.getElementById("stdinInput");
+const stdoutText = document.getElementById("stdoutText");
+const execBadge = document.getElementById("execBadge");
+const statusText = document.getElementById("statusText");
+const timeText = document.getElementById("timeText");
+const loadingState = document.getElementById("loadingState");
+const runBtn = document.getElementById("runBtn");
+
+// Initialize Editor
+function initEditor() {
+  const currentLang = langSelect.value;
+  editor.value = STARTER_CODES[currentLang];
+  fileNameDisplay.textContent = FILE_NAMES[currentLang];
+}
+
+function changeLanguage() {
+  const currentLang = langSelect.value;
+  editor.value = STARTER_CODES[currentLang] || "";
+  fileNameDisplay.textContent = FILE_NAMES[currentLang] || "code";
+}
+
+function resetCode() {
+  const currentLang = langSelect.value;
+  editor.value = STARTER_CODES[currentLang] || "";
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(editor.value).then(() => {
+    alert("Code copied to clipboard!");
+  });
+}
+
+// Enable Tab indentation inside textarea
+editor.addEventListener('keydown', function(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = this.selectionStart;
+    const end = this.selectionEnd;
+    this.value = this.value.substring(0, start) + "    " + this.value.substring(end);
+    this.selectionStart = this.selectionEnd = start + 4;
+  }
+  // Ctrl + Enter to Run
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    executeCode();
+  }
+});
+
+async function executeCode() {
+  const code = editor.value;
+  const lang = langSelect.value;
+  const input = stdinInput.value;
+
+  if (!code.trim()) {
+    alert("Please enter code before running.");
+    return;
+  }
+
+  runBtn.disabled = true;
+  loadingState.classList.remove("d-none");
+  stdoutText.textContent = "";
+  execBadge.className = "badge bg-info text-dark font-monospace";
+  execBadge.textContent = "Running...";
+  statusText.textContent = "Executing";
+  statusText.className = "text-warning";
+
+  try {
+    const response = await fetch("/api/compiler/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: lang, code: code, input: input })
+    });
+
+    const data = await response.json();
+    loadingState.classList.add("d-none");
+    runBtn.disabled = false;
+
+    timeText.textContent = data.execution_time || "0.00s";
+
+    if (data.status === "success") {
+      execBadge.className = "badge bg-success font-monospace";
+      execBadge.textContent = "Success";
+      statusText.textContent = "Completed";
+      statusText.className = "text-success";
+
+      stdoutText.className = "text-light m-0 font-monospace";
+      stdoutText.textContent = data.output || "(Program executed successfully with no stdout output)";
+      if (data.error && data.error.trim()) {
+        stdoutText.textContent += "\n\n[Stderr Output]:\n" + data.error;
+      }
+    } else if (data.status === "compile_error") {
+      execBadge.className = "badge bg-danger font-monospace";
+      execBadge.textContent = "Compile Error";
+      statusText.textContent = "Compilation Failed";
+      statusText.className = "text-danger";
+
+      stdoutText.className = "text-danger m-0 font-monospace";
+      stdoutText.textContent = "❌ Compilation Error:\n\n" + (data.error || "Syntax or compilation error.");
+    } else if (data.status === "timeout") {
+      execBadge.className = "badge bg-warning text-dark font-monospace";
+      execBadge.textContent = "Time Limit Exceeded";
+      statusText.textContent = "Timed Out";
+      statusText.className = "text-warning";
+
+      stdoutText.className = "text-warning m-0 font-monospace";
+      stdoutText.textContent = "⚠️ " + (data.error || "Program timed out.");
+    } else {
+      execBadge.className = "badge bg-danger font-monospace";
+      execBadge.textContent = "Runtime Error";
+      statusText.textContent = "Runtime Failure";
+      statusText.className = "text-danger";
+
+      stdoutText.className = "text-danger m-0 font-monospace";
+      stdoutText.textContent = "❌ Runtime Error:\n\n" + (data.error || data.output || "Error executing code.");
+    }
+
+  } catch (err) {
+    loadingState.classList.add("d-none");
+    runBtn.disabled = false;
+    execBadge.className = "badge bg-danger font-monospace";
+    execBadge.textContent = "Server Error";
+    statusText.textContent = "Error";
+    statusText.className = "text-danger";
+    stdoutText.className = "text-danger m-0 font-monospace";
+    stdoutText.textContent = "Server communication error: " + err.message;
+  }
+}
+
+// On Load
+document.addEventListener("DOMContentLoaded", initEditor);
+</script>
+{% block content_end %}{% endblock %}
+{% endblock %}
