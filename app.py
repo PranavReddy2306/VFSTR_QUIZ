@@ -2639,17 +2639,56 @@ def create_app():
 
 
 # ================================
-# App Initialization
+# App Initialization & Migration
 # ================================
+def auto_migrate_sqlite(app, db):
+    with app.app_context():
+        db.create_all()
+        try:
+            with db.engine.connect() as conn:
+                from sqlalchemy import text
+                # Migrations for 'question' table
+                q_cols = [r[1] for r in conn.execute(text("PRAGMA table_info(question)")).fetchall()]
+                if q_cols:
+                    if "q_type" not in q_cols:
+                        conn.execute(text("ALTER TABLE question ADD COLUMN q_type VARCHAR(20) DEFAULT 'mcq'"))
+                    if "sample_input" not in q_cols:
+                        conn.execute(text("ALTER TABLE question ADD COLUMN sample_input TEXT"))
+                    if "sample_output" not in q_cols:
+                        conn.execute(text("ALTER TABLE question ADD COLUMN sample_output TEXT"))
+                    if "test_cases" not in q_cols:
+                        conn.execute(text("ALTER TABLE question ADD COLUMN test_cases TEXT"))
+                    if "allowed_language" not in q_cols:
+                        conn.execute(text("ALTER TABLE question ADD COLUMN allowed_language VARCHAR(50) DEFAULT 'c,cpp,python,java'"))
+
+                # Migrations for 'response' table
+                r_cols = [r[1] for r in conn.execute(text("PRAGMA table_info(response)")).fetchall()]
+                if r_cols:
+                    if "submitted_code" not in r_cols:
+                        conn.execute(text("ALTER TABLE response ADD COLUMN submitted_code TEXT"))
+                    if "submitted_lang" not in r_cols:
+                        conn.execute(text("ALTER TABLE response ADD COLUMN submitted_lang VARCHAR(20)"))
+                    if "test_cases_passed" not in r_cols:
+                        conn.execute(text("ALTER TABLE response ADD COLUMN test_cases_passed INTEGER DEFAULT 0"))
+                    if "total_test_cases" not in r_cols:
+                        conn.execute(text("ALTER TABLE response ADD COLUMN total_test_cases INTEGER DEFAULT 0"))
+                    if "marks_obtained" not in r_cols:
+                        conn.execute(text("ALTER TABLE response ADD COLUMN marks_obtained FLOAT DEFAULT 0.0"))
+                conn.commit()
+        except Exception as e:
+            print(f"⚠️ Migration notice: {e}")
+
 app = create_app()
+auto_migrate_sqlite(app, db)
+
 with app.app_context():
-    db.create_all()
     if not User.query.filter_by(email="admin@quiz.com").first():
         admin = User(name="Pranav Reddy", email="admin@quiz.com", role="manager")
         admin.set_password("Pranav123")
         db.session.add(admin)
         db.session.commit()
         print("✅ Default manager account created (admin@quiz.com / Pranav123)")
+
 
 if __name__ == "__main__":
     # Allow configuring the host and port via environment variables.
