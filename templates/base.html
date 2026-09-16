@@ -35,11 +35,8 @@
         <span class="brand-title">VFSTR <span class="brand-accent">QUIZ</span></span>
       </div>
       <div class="links">
-        <a href="{{ url_for('compiler_page') }}" class="btn btn-sm btn-outline-light me-2 d-inline-flex align-items-center gap-2">
-          <i class="fa-solid fa-code text-info"></i>
-          <span>Code Compiler</span>
-        </a>
         {% if current_user.is_authenticated %}
+
         <div class="user-profile-badge">
           <div class="user-avatar">
             <i class="fa-solid fa-user-astronaut"></i>
